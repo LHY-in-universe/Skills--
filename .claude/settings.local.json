@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la skills/*/)",
+      "Bash(mkdir -p \"/Users/lhy/Desktop/Skills探索/skills/terminal/scripts\")",
+      "Bash(mkdir -p \"/Users/lhy/Desktop/Skills探索/test\")",
+      "Bash(python3 skills/skill_manager/scripts/scan_skills.py)",
+      "Bash(python3 -W error -c ':*)",
+      "Bash(python3 \"/Users/lhy/Desktop/Skills探索/skills/skill_manager/scripts/scan_skills.py\")",
+      "Bash(python3 scripts/monte_carlo.py --method crude --func sin --n 100000 --seed 42)",
+      "Bash(python3 scripts/monte_carlo.py --method all --func x2 --n 50000 --seed 0)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('best:', d['best_method']\\); [print\\(f\\\\\"  {r['method']:20s} abs_error={r['abs_error']}\\\\\"\\) for r in d['comparison']]\")",
+      "Bash(python3 scripts/monte_carlo.py --func unknown)"
+    ]
+  }
+}

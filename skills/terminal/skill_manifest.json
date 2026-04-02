@@ -1,0 +1,14 @@
+{
+  "tool_name": "run_terminal",
+  "skill_dir": "terminal",
+  "script": "scripts/run_command.py",
+  "trusted": true,
+  "description": "在 /Users/lhy/Desktop/Skills探索/test 沙箱目录内执行白名单终端命令",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {"type": "string", "description": "要执行的终端命令，如 'ls -la' 或 'mkdir output'"}
+    },
+    "required": ["command"]
+  }
+}

@@ -1,0 +1,69 @@
+# --- Sensitive and Private Information ---
+.env
+siliconflow/.env
+siliconflow/memory.json
+*.key
+*.pem
+token.txt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Python Virtual Environments ---
+venv/
+webapp/backend/venv/
+.venv/
+ENV/
+
+# --- Node.js / Frontend ---
+node_modules/
+webapp/frontend/node_modules/
+dist/
+dist-ssr/
+*.local
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.node_repl_history
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- Operating System ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Project Specific ---
+test/ # This was mentioned as a sandbox directory

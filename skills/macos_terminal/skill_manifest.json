@@ -1,0 +1,15 @@
+{
+  "tool_name": "open_terminal",
+  "skill_dir": "macos_terminal",
+  "script": "scripts/open_terminal.py",
+  "trusted": true,
+  "description": "打开 macOS Terminal.app 并在可见窗口中执行命令，用户可实时看到终端输出",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command":   {"type": "string", "description": "要在终端中执行的命令"},
+      "directory": {"type": "string", "description": "工作目录（可选），执行前先 cd 到该路径"}
+    },
+    "required": ["command"]
+  }
+}

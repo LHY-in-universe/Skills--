@@ -1,0 +1,15 @@
+{
+  "tool_name": "write_python",
+  "skill_dir": "python_writer",
+  "script": "scripts/write_python.py",
+  "description": "安全写入 Python 文件，写入前强制校验：路径范围、语法、禁止危险调用、结构规范",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "folder":  {"type": "string", "description": "目标文件夹路径"},
+      "file":    {"type": "string", "description": "文件名，必须以 .py 结尾"},
+      "content": {"type": "string", "description": "Python 代码内容，换行用 \\n，制表符用 \\t"}
+    },
+    "required": ["folder", "file", "content"]
+  }
+}

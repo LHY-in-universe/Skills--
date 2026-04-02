@@ -1,0 +1,18 @@
+{
+  "tool_name": "file_editor",
+  "skill_dir": "file_editor",
+  "script": "scripts/edit_file.py",
+  "description": "在 /Users/lhy/Desktop/Skills探索 目录内操作文件：列出文件(list)、读取(read)、写入/新建(write)、追加(append)、文本替换(replace)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "op":      {"type": "string", "enum": ["list", "read", "write", "append", "replace"], "description": "操作类型"},
+      "folder":  {"type": "string", "description": "目标文件夹路径（必须在 /Users/lhy/Desktop/Skills探索 内）"},
+      "file":    {"type": "string", "description": "文件名（list 操作可省略）"},
+      "content": {"type": "string", "description": "写入或追加的内容（write/append 操作）"},
+      "old":     {"type": "string", "description": "要被替换的原始文本（replace 操作）"},
+      "new":     {"type": "string", "description": "替换后的新文本（replace 操作）"}
+    },
+    "required": ["op", "folder"]
+  }
+}

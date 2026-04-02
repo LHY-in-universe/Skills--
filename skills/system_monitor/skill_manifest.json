@@ -1,0 +1,10 @@
+{
+  "tool_name": "get_system_info",
+  "skill_dir": "system_monitor",
+  "script": "scripts/get_sys_info.py",
+  "description": "获取系统运行指标（CPU、内存占用、已运行时间 uptime 等）",
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "tool_name": "get_weather",
+  "skill_dir": "weather",
+  "script": "scripts/get_weather.py",
+  "description": "获取指定城市的实时天气信息（温度、状态等）",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "city": {"type": "string", "description": "城市名称"}
+    },
+    "required": ["city"]
+  }
+}

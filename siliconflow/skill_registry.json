@@ -1,0 +1,200 @@
+[
+  {
+    "tool_name": "get_current_time",
+    "skill_dir": "clock",
+    "script": "scripts/get_time.py",
+    "description": "获取当前的精确日期、时刻（北京时间）和星期",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "tool_name": "file_editor",
+    "skill_dir": "file_editor",
+    "script": "scripts/edit_file.py",
+    "description": "在 /Users/lhy/Desktop/Skills探索 目录内操作文件：列出文件(list)、读取(read)、写入/新建(write)、追加(append)、文本替换(replace)",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "list",
+            "read",
+            "write",
+            "append",
+            "replace"
+          ],
+          "description": "操作类型"
+        },
+        "folder": {
+          "type": "string",
+          "description": "目标文件夹路径（必须在 /Users/lhy/Desktop/Skills探索 内）"
+        },
+        "file": {
+          "type": "string",
+          "description": "文件名（list 操作可省略）"
+        },
+        "content": {
+          "type": "string",
+          "description": "写入或追加的内容（write/append 操作）"
+        },
+        "old": {
+          "type": "string",
+          "description": "要被替换的原始文本（replace 操作）"
+        },
+        "new": {
+          "type": "string",
+          "description": "替换后的新文本（replace 操作）"
+        }
+      },
+      "required": [
+        "op",
+        "folder"
+      ]
+    }
+  },
+  {
+    "tool_name": "open_terminal",
+    "skill_dir": "macos_terminal",
+    "script": "scripts/open_terminal.py",
+    "description": "打开 macOS Terminal.app 并在可见窗口中执行命令，用户可实时看到终端输出",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "要在终端中执行的命令"
+        },
+        "directory": {
+          "type": "string",
+          "description": "工作目录（可选），执行前先 cd 到该路径"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "tool_name": "write_python",
+    "skill_dir": "python_writer",
+    "script": "scripts/write_python.py",
+    "description": "安全写入 Python 文件，写入前强制校验：路径范围、语法、禁止危险调用、结构规范",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "folder": {
+          "type": "string",
+          "description": "目标文件夹路径"
+        },
+        "file": {
+          "type": "string",
+          "description": "文件名，必须以 .py 结尾"
+        },
+        "content": {
+          "type": "string",
+          "description": "Python 代码内容，换行用 \\n，制表符用 \\t"
+        }
+      },
+      "required": [
+        "folder",
+        "file",
+        "content"
+      ]
+    }
+  },
+  {
+    "tool_name": "get_system_info",
+    "skill_dir": "system_monitor",
+    "script": "scripts/get_sys_info.py",
+    "description": "获取系统运行指标（CPU、内存占用、已运行时间 uptime 等）",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "tool_name": "run_terminal",
+    "skill_dir": "terminal",
+    "script": "scripts/run_command.py",
+    "description": "在 /Users/lhy/Desktop/Skills探索/test 沙箱目录内执行白名单终端命令",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "要执行的终端命令，如 'ls -la' 或 'mkdir output'"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "tool_name": "get_weather",
+    "skill_dir": "weather",
+    "script": "scripts/get_weather.py",
+    "description": "获取指定城市的实时天气信息（温度、状态等）",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "城市名称"
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  },
+  {
+    "tool_name": "monte_carlo_integration",
+    "skill_dir": "monte_carlo",
+    "script": "scripts/monte_carlo.py",
+    "description": "用随机数估算一维定积分，支持五种蒙特卡洛方法（基础随机采样、打靶法、分层采样、重要性采样、控制变量法），输出估计值、绝对误差、相对误差、标准差；'all' 模式同时运行全部方法并按误差排序对比",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "crude",
+            "hit_or_miss",
+            "stratified",
+            "importance",
+            "control_variates",
+            "all"
+          ],
+          "description": "积分方法；'all' 同时运行所有方法并输出横向对比，按误差从小到大排序",
+          "default": "crude"
+        },
+        "func": {
+          "type": "string",
+          "enum": [
+            "sin",
+            "x2",
+            "exp"
+          ],
+          "description": "被积函数：sin=sin(x)（真实值≈0.4597），x2=x²（真实值=1/3），exp=e^x（真实值≈1.7183），区间均为 [0,1]",
+          "default": "sin"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "随机采样点数，越大精度越高但耗时越长，推荐范围 10000~1000000",
+          "default": 100000
+        },
+        "seed": {
+          "type": "integer",
+          "description": "随机种子，固定后结果完全可复现；'all' 模式下每种方法使用相同种子保证公平对比",
+          "default": 42
+        }
+      },
+      "required": []
+    }
+  }
+]
