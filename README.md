@@ -1,72 +1,71 @@
-# 🤖 Skills探索 — 本地 AI 技能系统 & Web 助手
+# 🤖 Skills探索 — 智能本地 AI 代理系统
 
-这是一个强大的本地 AI 技能框架。除了传统的终端交互，现在还支持一个**全功能的 Web 界面**（基于 Vue 3 + FastAPI），让您能够直观地管理模型、技能和对话。
+这是一个强大的本地智能 Agent 架构。除了支持传统的命令行（CLI）执行外，还配备了具备**现代化玻璃拟态 UI**的完整 Web 控制台。系统不仅能与大模型进行流畅交流，还能安全、可控地操作您的本地计算机设备。
 
-## ✨ 主要功能
+## ✨ 核心特性
 
-- **现代 Web UI**：玻璃拟态（Glassmorphism）设计，支持响应式布局和深色模式。
-- **大模型编排**：支持 SiliconFlow 平台，并允许在 UI 中**自定义 API 网址和 Token**，适配任何 OpenAI 兼容接口。
-- **技能管理**：
-  - 自动扫描 `skills/` 目录下的 Python 脚本并注册为工具。
-  - 在网页端一键开关（Enable/Disable）特定技能。
-- **本地工具集成**：天气查询、系统监控、时间感知、文件编辑（安全沙箱）、终端操作、Python 代码写入等。
-- **长期记忆**：自动记录用户的偏好和背景信息，实现跨会话记忆。
+- **现代 Web UI**：玻璃拟态（Glassmorphism）设计、深/浅色模式自适应、工具执行折叠动画显示，聊天顺滑流畅。
+- **大模型动态接驳**：支持任何兼容 OpenAI 格式的 API（如 SiliconFlow、DeepSeek、Qwen 接口），可在侧边栏灵活调整 API 令牌和自定义模型模型。
+- **🛠️ 动态技能中心（Skill Registry）**：
+  - 支持热插拔技能。通过修改 `siliconflow/skill_registry.json`，Web 侧边栏会自动显示新技能开关，无需修改 Web 代码。
+  - 完全由数据驱动，按需启用/禁用功能（防幻觉保护）。
+- **🔒 安全前置：人类在环（Human-in-the-loop）**：
+  - **强制审批机制**：在执行高危操作（新建/修改文件、执行终端命令等）前，执行流会被强制截断并在前端抛出审批弹窗。
+  - **沙箱隔离隔离**：对于后台终端指令，所有包含 `sudo`, `rm -rf`, 超越相对路径 (`../`) 等危险语法的命令均会被拦截器阻拦。
+- **🖥️ 真实终端可视监控**：通过 `open_terminal` 工具操作时，直接跨进程触发 AppleScript 打开你的 `Terminal.app` 显示并执行命令，不让 AI 黑盒运行。
 
 ## 📁 目录结构
 
 ```text
 Skills探索/
-├── webapp/             # ✨ 新增：Web 应用全栈代码
-│   ├── backend/        # FastAPI 后端服务
-│   └── frontend/       # Vue 3 现代前端界面
-├── siliconflow/        # 核心逻辑与 CLI 编排器
-│   ├── scripts/chat.py # 终端对话引擎
+├── webapp/             # Web 应用全栈代码
+│   ├── backend/        # FastAPI 编排器 (拦截器、工具解析)
+│   └── frontend/       # Vue 3 现代界面 (消息控制、动态菜单)
+├── siliconflow/        # 核心技能源数据库与系统变量
+│   ├── skill_registry.json # ✨ 技能总注册表（工具的元信息管理）
+│   ├── scripts/chat.py # 终端 CLI 备用引擎
 │   └── .env            # 基础 API 配置
-├── skills/             # 本地功能插件库 (Weather, Clock, System...)
-└── test/               # terminal 技能的专用沙箱
+├── skills/             # 本地能力插件脚本库
+└── test/               # terminal 命令执行的安全沙箱
 ```
 
 ## 🚀 快速入门
 
-### 1. 运行 Web 版本 (推荐)
+### 1. 启动完整的 Web 版本 (推荐核心玩法)
 
-**后端启动：**
+**启动 AI 大脑与服务后端：**
 ```bash
-# 进入后端工作目录并激活虚拟环境
-source webapp/backend/venv/bin/activate
-# 启动 API 服务
-python3 webapp/backend/main.py
+cd /Users/lhy/Desktop/Skills探索/webapp/backend 
+source venv/bin/activate
+python3 main.py
 ```
-*API 服务默认运行在: `http://localhost:8000`*
+*服务默认运行在 `http://localhost:8000`*
 
-**前端启动：**
+**启动交互前端 (Vite)：**
 ```bash
-# 进入前端目录并安装依赖 (仅首次)
-cd webapp/frontend
-npm install
-# 开启开发服务器
+cd /Users/lhy/Desktop/Skills探索/webapp/frontend 
 npm run dev
 ```
 *在浏览器打开输出的地址（通常是 `http://localhost:5173`）即可开始对话。*
 
-### 2. 运行 CLI 版本 (备选)
+### 2. 添加你的私人技能
+1. 在 `skills/你的新功能/scripts/脚本.py` 中编写逻辑。
+2. 在 `siliconflow/skill_registry.json` 中配置大模型对应的接口协议参数。
+3. 重启 `python3 main.py`，你的浏览器左侧就会神奇地长出这个能力的开关啦！
 
-若您偏好终端，仍可使用原逻辑：
-```bash
-python3 siliconflow/scripts/chat.py
-```
+## 🛠️ 已原生集成的强大技能
 
-## 🛠️ 已集成技能
-
-| 技能图标 | 技能名称 | 描述说明 | 权限限制 |
+| 技能图标 | 技能名称 | 对应后台工具 | 描述说明 & 保护级别 |
 | :--- | :--- | :--- | :--- |
-| ⛅ | **天气查询** | 获取全球城市实时天气、温度与状态 | 无 |
-| 🕒 | **时钟日历** | 获取当前精确的北京时间、日期及星期 | 无 |
-| 📊 | **系统监控** | 实时查看 CPU、内存占用及系统运行时间 | 无 |
-| 📝 | **文件编辑** | 列出、读取、写入、追加或局部替换文本 | 限于 `Skills探索/` 目录下 |
-| 💻 | **终端命令** | 执行 ls, cat, mkdir, grep 等白名单命令 | 限于 `test/` 沙箱内 |
-| 🐍 | **Python 写入** | 安全地编写并保存 Python 脚本进行本地处理 | 已集成安全校验 |
-| 🧠 | **记忆管理** | 持久化保存或删除关键信息，实现长期记忆 | 自动持久化 |
+| ⛅ | **天气查询** | `get_weather` | 获取全球城市实时天气。已修复多语言 Unicode |
+| 🕒 | **时钟日历** | `get_current_time` | 获取当前的精准北京时间 |
+| 📊 | **系统监控** | `get_system_info` | 查看 CPU、内存及系统进程 |
+| 📝 | **文件操作** | `file_editor` | 查阅、局部修改文件。写入操作**需要前端人工授权确认** |
+| 🛡️ | **沙箱隔离命令** | `run_terminal` | 测试白名单脚本执行。**强制前端人工确认审批，路径设限** |
+| 🖥️ | **直连真实终端** | `open_terminal` | 唤起 MacOS 真终端执行，实时透明可见。**需要前端人工确认** |
+| 🐍 | **编写Python** | `write_python` | 生成代码进硬盘特定路径。**需要前端人工确认** |
+| 🧠 | **记忆网络管理** | `memory_save` | 动态将你偏好存入长记忆系统 |
+| 🎲 | **高阶运算测试**| `monte_carlo_integration`| 基于离散蒙特卡洛测试的算法求解功能集成 |
 
 ---
-*Powered by Antigravity AI Orchestrator*
+*Powered by Deepmind AI Agent System - `Antigravity`*

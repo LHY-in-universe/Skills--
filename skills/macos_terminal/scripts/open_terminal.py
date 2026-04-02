@@ -37,7 +37,8 @@ def main():
         )
         result = json.loads(result_raw)
     except subprocess.CalledProcessError as e:
-        abort(f"terminal 技能执行失败: {e.stderr.strip()}")
+        error_msg = e.output.strip() if e.output else e.stderr.strip()
+        abort(f"terminal 技能执行失败: {error_msg}")
     except subprocess.TimeoutExpired:
         abort("命令执行超时（15 秒）")
     except json.JSONDecodeError:

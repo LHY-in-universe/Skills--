@@ -10,6 +10,7 @@ def get_weather(city="上海"):
         # 使用 format=3 获取简洁的单行输出
         url = f"https://wttr.in/{urllib.parse.quote(city)}?format=3"
         response = requests.get(url, timeout=10)
+        response.encoding = 'utf-8'  # 强制使用 UTF-8 解析响应内容，修复乱码问题
         
         if "Unknown location" in response.text:
             print(f"Error: 找不到城市 '{city}' 的天气信息。")

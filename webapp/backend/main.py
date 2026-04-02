@@ -33,9 +33,23 @@ class SkillToggleRequest(BaseModel):
     name: str
     enabled: bool
 
+class ModelAddRequest(BaseModel):
+    name: str
+    model_id: str
+
 @app.get("/api/models")
 async def get_models():
     return orchestrator.models
+
+@app.post("/api/models")
+async def add_model(req: ModelAddRequest):
+    orchestrator.add_model(req.name, req.model_id)
+    return {"status": "ok", "models": orchestrator.models}
+
+@app.delete("/api/models/{model_name}")
+async def delete_model(model_name: str):
+    orchestrator.delete_model(model_name)
+    return {"status": "ok", "models": orchestrator.models}
 
 @app.get("/api/config")
 async def get_config():
@@ -83,6 +97,21 @@ async def get_history():
 @app.post("/api/history/clear")
 async def clear_history():
     orchestrator.clear_history()
+    return {"status": "ok"}
+
+class PermissionResumeRequest(BaseModel):
+    granted: bool
+
+@app.post("/api/chat/resume")
+async def resume_chat(req: PermissionResumeRequest):
+    """Called after user responds to a permission dialog."""
+    response = await orchestrator.resume_after_permission(req.granted)
+    return response
+
+@app.post("/api/chat/abort")
+async def abort_chat():
+    """Abort the current generation."""
+    orchestrator.abort()
     return {"status": "ok"}
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ ALLOWED_COMMANDS = {
     "echo", "printf", "pwd",
     "mkdir", "touch", "cp", "mv", "rm",
     "sort", "uniq", "cut", "awk", "sed",
-    "python3", "python",
+    "python3", 
 }
 
 # 禁止出现的危险模式
