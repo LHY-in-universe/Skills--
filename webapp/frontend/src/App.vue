@@ -11,6 +11,22 @@ const currentModel = ref('')
 const skills = ref([])
 const isLightMode = ref(false)
 const apiConfig = ref({ api_url: '', current_model: '' })
+const conversations = ref([])
+const activeConversationId = ref('')
+
+// Desktop sprite (Electron) mode
+const isElectron = typeof window !== 'undefined' && !!window.electronAPI
+const isCompact = ref(false)
+// Dev mode: Electron loads from http://localhost:5173, Vite proxy works, use relative URLs
+// Prod mode: Electron loads from file://, no proxy, need absolute URL
+const API_BASE = (isElectron && window.location.protocol === 'file:')
+  ? 'http://localhost:8000'
+  : ''
+
+const toggleCompact = () => {
+  isCompact.value = !isCompact.value
+  if (isElectron) window.electronAPI.toggleCompact(isCompact.value)
+}
 
 // Permission dialog state
 const permissionDialog = ref({
@@ -40,31 +56,55 @@ provide('skills', skills)
 provide('apiConfig', apiConfig)
 provide('isLightMode', isLightMode)
 provide('permissionDialog', permissionDialog)
+provide('conversations', conversations)
+provide('activeConversationId', activeConversationId)
+provide('apiBase', API_BASE)
 
 const fetchHistory = async () => {
   try {
-    const historyRes = await fetch('/api/history').then(res => res.json())
+    const historyRes = await fetch(`${API_BASE}/api/history`).then(res => res.json())
     messages.value = historyRes
   } catch (err) {
     console.error('Failed to fetch history:', err)
   }
 }
 
-const fetchInitialData = async () => {
+const fetchConversations = async () => {
   try {
-    const [modelsRes, configRes, skillsRes] = await Promise.all([
-      fetch('/api/models').then(res => res.json()),
-      fetch('/api/config').then(res => res.json()),
-      fetch('/api/skills').then(res => res.json()),
-    ])
-    models.value = modelsRes
-    apiConfig.value = configRes
-    currentModel.value = configRes.current_model
-    skills.value = skillsRes
-    await fetchHistory()
+    const res = await fetch(`${API_BASE}/api/conversations`).then(r => r.json())
+    conversations.value = res
+    const active = res.find(c => c.active)
+    if (active) activeConversationId.value = active.id
   } catch (err) {
-    console.error('Failed to fetch initial data:', err)
+    console.error('Failed to fetch conversations:', err)
   }
+}
+
+const switchConversation = async (convId) => {
+  if (convId === activeConversationId.value) return
+  isTyping.value = false
+  await fetch(`${API_BASE}/api/conversations/${convId}/activate`, { method: 'POST' })
+  activeConversationId.value = convId
+  await Promise.all([fetchHistory(), fetchConversations()])
+}
+
+const createConversation = async () => {
+  const res = await fetch(`${API_BASE}/api/conversations`, { method: 'POST' }).then(r => r.json())
+  activeConversationId.value = res.id
+  await Promise.all([fetchHistory(), fetchConversations()])
+}
+
+const fetchInitialData = async () => {
+  const safe = (p) => p.catch(err => { console.error('fetch error:', err); return null })
+  const [modelsRes, configRes, skillsRes] = await Promise.all([
+    safe(fetch(`${API_BASE}/api/models`).then(r => r.json())),
+    safe(fetch(`${API_BASE}/api/config`).then(r => r.json())),
+    safe(fetch(`${API_BASE}/api/skills`).then(r => r.json())),
+  ])
+  if (modelsRes) models.value = modelsRes
+  if (configRes) { apiConfig.value = configRes; currentModel.value = configRes.current_model }
+  if (skillsRes) skills.value = skillsRes
+  await Promise.all([fetchHistory(), fetchConversations()])
 }
 
 const handleApiResponse = async (data) => {
@@ -89,7 +129,7 @@ const sendMessage = async (text) => {
 
   abortController = new AbortController()
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_input: text }),
@@ -111,14 +151,14 @@ const sendMessage = async (text) => {
   }
 }
 
-const handlePermissionResponse = async (granted) => {
+const handlePermissionResponse = async (granted, alwaysAllow = false) => {
   permissionDialog.value.visible = false
   abortController = new AbortController()
   try {
-    const response = await fetch('/api/chat/resume', {
+    const response = await fetch(`${API_BASE}/api/chat/resume`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ granted }),
+      body: JSON.stringify({ granted, always_allow: alwaysAllow }),
       signal: abortController.signal
     })
     if (!response.ok) throw new Error('Resume failed')
@@ -136,12 +176,13 @@ const abortChat = async () => {
   if (abortController) abortController.abort()
   isTyping.value = false
   permissionDialog.value.visible = false
-  await fetch('/api/chat/abort', { method: 'POST' }).catch(() => {})
+  await fetch(`${API_BASE}/api/chat/abort`, { method: 'POST' }).catch(() => {})
 }
 
 const clearHistory = async () => {
-  await fetch('/api/history/clear', { method: 'POST' })
+  await fetch(`${API_BASE}/api/history/clear`, { method: 'POST' })
   messages.value = []
+  await fetchConversations()
 }
 
 const toggleTheme = () => {
@@ -152,12 +193,24 @@ onMounted(fetchInitialData)
 </script>
 
 <template>
+  <!-- Desktop sprite: compact bubble -->
+  <div v-if="isElectron && isCompact" class="desktop-bubble" @click="toggleCompact">🤖</div>
+
+  <!-- Desktop sprite: drag bar (expanded mode) -->
+  <div v-if="isElectron && !isCompact" class="desktop-drag-bar">
+    <span class="drag-region">桌面精灵</span>
+    <button class="no-drag" @click="toggleCompact" title="折叠">—</button>
+  </div>
+
   <Sidebar
+    v-show="!isElectron || !isCompact"
     @clear-history="clearHistory"
     @refresh-data="fetchInitialData"
     @toggle-theme="toggleTheme"
+    @switch-conversation="switchConversation"
+    @create-conversation="createConversation"
   />
-  <main class="chat-main">
+  <main v-show="!isElectron || !isCompact" class="chat-main">
     <ChatContainer />
     <MessageInput @send="sendMessage" @abort="abortChat" />
   </main>
@@ -178,10 +231,13 @@ onMounted(fetchInitialData)
           <pre class="permission-detail">{{ permissionDialog.description }}</pre>
         </div>
         <div class="permission-actions">
+          <button class="perm-btn always" @click="handlePermissionResponse(true, true)">
+            ∞ 一直同意
+          </button>
           <button class="perm-btn deny" @click="handlePermissionResponse(false)">
             ✕ 拒绝
           </button>
-          <button class="perm-btn approve" @click="handlePermissionResponse(true)">
+          <button class="perm-btn approve" @click="handlePermissionResponse(true, false)">
             ✓ 同意执行
           </button>
         </div>

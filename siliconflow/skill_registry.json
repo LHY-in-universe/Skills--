@@ -56,28 +56,6 @@
     }
   },
   {
-    "tool_name": "open_terminal",
-    "skill_dir": "macos_terminal",
-    "script": "scripts/open_terminal.py",
-    "description": "打开 macOS Terminal.app 并在可见窗口中执行命令，用户可实时看到终端输出",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "command": {
-          "type": "string",
-          "description": "要在终端中执行的命令"
-        },
-        "directory": {
-          "type": "string",
-          "description": "工作目录（可选），执行前先 cd 到该路径"
-        }
-      },
-      "required": [
-        "command"
-      ]
-    }
-  },
-  {
     "tool_name": "write_python",
     "skill_dir": "python_writer",
     "script": "scripts/write_python.py",
@@ -119,7 +97,7 @@
     "tool_name": "run_terminal",
     "skill_dir": "terminal",
     "script": "scripts/run_command.py",
-    "description": "在 /Users/lhy/Desktop/Skills探索/test 沙箱目录内执行白名单终端命令",
+    "description": "在当前工作目录执行白名单终端命令",
     "parameters": {
       "type": "object",
       "properties": {

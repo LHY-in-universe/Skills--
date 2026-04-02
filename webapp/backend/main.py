@@ -12,10 +12,15 @@ app = FastAPI(title="SiliconFlow AI Orchestrator API")
 # Enable CORS for the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "PATCH"],
+    allow_headers=["Content-Type"],
 )
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -99,13 +104,69 @@ async def clear_history():
     orchestrator.clear_history()
     return {"status": "ok"}
 
+class ConversationRenameRequest(BaseModel):
+    name: str
+
+@app.get("/api/conversations")
+async def list_conversations():
+    return orchestrator.list_conversations()
+
+@app.post("/api/conversations")
+async def create_conversation():
+    return orchestrator.create_conversation()
+
+@app.post("/api/conversations/{conv_id}/activate")
+async def activate_conversation(conv_id: str):
+    try:
+        orchestrator.switch_conversation(conv_id)
+        return {"status": "ok", "active_id": conv_id}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.delete("/api/conversations/{conv_id}")
+async def delete_conversation(conv_id: str):
+    try:
+        orchestrator.delete_conversation(conv_id)
+        return {"status": "ok", "conversations": orchestrator.list_conversations()}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.patch("/api/conversations/{conv_id}")
+async def rename_conversation(conv_id: str, req: ConversationRenameRequest):
+    try:
+        orchestrator.rename_conversation(conv_id, req.name)
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+class TerminalCwdRequest(BaseModel):
+    cwd: str
+
+@app.get("/api/terminal/cwd")
+async def get_terminal_cwd():
+    return {"cwd": orchestrator.user_cwd or ""}
+
+@app.post("/api/terminal/cwd")
+async def set_terminal_cwd(req: TerminalCwdRequest):
+    from pathlib import Path as P
+    cwd = req.cwd.strip()
+    if cwd:
+        p = P(cwd).expanduser().resolve()
+        if not p.exists() or not p.is_dir():
+            raise HTTPException(status_code=400, detail=f"目录不存在: {cwd}")
+        orchestrator.user_cwd = str(p)
+    else:
+        orchestrator.user_cwd = None
+    return {"cwd": orchestrator.user_cwd or ""}
+
 class PermissionResumeRequest(BaseModel):
     granted: bool
+    always_allow: bool = False
 
 @app.post("/api/chat/resume")
 async def resume_chat(req: PermissionResumeRequest):
     """Called after user responds to a permission dialog."""
-    response = await orchestrator.resume_after_permission(req.granted)
+    response = await orchestrator.resume_after_permission(req.granted, req.always_allow)
     return response
 
 @app.post("/api/chat/abort")

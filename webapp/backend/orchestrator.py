@@ -1,5 +1,8 @@
 import os
+import re
 import json
+import uuid
+import time
 import subprocess
 import requests
 import asyncio
@@ -21,15 +24,19 @@ class ChatOrchestrator:
         
         self.base_system_prompt = "你是一个基于 Python 的全能助手。支持图片分析和本地工具调用。"
         self.models = self._load_models()
-        
         self.current_model = list(self.models.values())[0] if self.models else "Qwen/Qwen3.5-27B"
-        self.messages = [] # Will be initialized in clear_history
         self.tools = self._initialize_tools()
         self.active_skills = {t["function"]["name"]: True for t in self.tools}
         self.granted_permissions = set()
         self._pending_permission = None
         self._aborted = False
-        self.clear_history()
+        self.user_cwd: Optional[str] = None
+
+        # Multi-conversation support
+        self.conversations_path = project_root / "siliconflow" / "conversations.json"
+        self._conversations: Dict[str, Any] = {}
+        self.active_conversation_id: str = ""
+        self._load_conversations()
 
     def _load_models(self) -> Dict[str, str]:
         if not self.models_path.exists():
@@ -54,21 +61,119 @@ class ChatOrchestrator:
             del self.models[name]
             self._save_models()
 
+    # ── Conversation management ─────────────────────────────────
+
+    @property
+    def messages(self) -> List[Dict]:
+        return self._conversations[self.active_conversation_id]["messages"]
+
+    @messages.setter
+    def messages(self, value: List[Dict]):
+        self._conversations[self.active_conversation_id]["messages"] = value
+
+    def _load_conversations(self):
+        if self.conversations_path.exists():
+            try:
+                data = json.loads(self.conversations_path.read_text(encoding="utf-8"))
+                self._conversations = data.get("conversations", {})
+                self.active_conversation_id = data.get("active_id", "")
+            except Exception:
+                pass
+        if not self._conversations or self.active_conversation_id not in self._conversations:
+            self._new_conversation_internal()
+
+    def _save_conversations(self):
+        self.conversations_path.write_text(
+            json.dumps({"active_id": self.active_conversation_id, "conversations": self._conversations},
+                       ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+
+    def _new_conversation_internal(self, name: str = "新对话") -> str:
+        conv_id = str(uuid.uuid4())[:8]
+        self._conversations[conv_id] = {
+            "id": conv_id,
+            "name": name,
+            "created_at": time.time(),
+            "messages": [{"role": "system", "content": self._build_system_prompt(self.load_memory())}]
+        }
+        self.active_conversation_id = conv_id
+        self._save_conversations()
+        return conv_id
+
+    def _conv_summary(self, conv_id: str) -> Dict:
+        conv = self._conversations[conv_id]
+        preview = next((m["content"][:50] for m in conv["messages"] if m["role"] == "user" and isinstance(m.get("content"), str)), "")
+        return {
+            "id": conv["id"],
+            "name": conv["name"],
+            "created_at": conv["created_at"],
+            "preview": preview,
+            "active": conv["id"] == self.active_conversation_id,
+            "message_count": sum(1 for m in conv["messages"] if m["role"] in ("user", "assistant"))
+        }
+
+    def list_conversations(self) -> List[Dict]:
+        result = [self._conv_summary(cid) for cid in self._conversations]
+        result.sort(key=lambda x: x["created_at"], reverse=True)
+        return result
+
+    def create_conversation(self) -> Dict:
+        conv_id = self._new_conversation_internal()
+        return self._conv_summary(conv_id)
+
+    def switch_conversation(self, conv_id: str):
+        if conv_id not in self._conversations:
+            raise ValueError(f"对话不存在: {conv_id}")
+        self._aborted = True
+        self._pending_permission = None
+        self.active_conversation_id = conv_id
+        self._save_conversations()
+
+    def delete_conversation(self, conv_id: str):
+        if conv_id not in self._conversations:
+            raise ValueError(f"对话不存在: {conv_id}")
+        del self._conversations[conv_id]
+        if not self._conversations:
+            self._new_conversation_internal()
+        elif self.active_conversation_id == conv_id:
+            self.active_conversation_id = next(iter(self._conversations))
+        self._save_conversations()
+
+    def rename_conversation(self, conv_id: str, name: str):
+        if conv_id not in self._conversations:
+            raise ValueError(f"对话不存在: {conv_id}")
+        self._conversations[conv_id]["name"] = name.strip() or "新对话"
+        self._save_conversations()
+
     def _permission_key(self, name: str, args: dict) -> str:
         if name == "file_editor":
             return f"file_editor:{args.get('op', '')}"
         return name
 
     def _needs_permission(self, name: str, args: dict) -> bool:
-        if name in {"write_python", "run_terminal", "open_terminal"}:
+        perm_key = self._permission_key(name, args)
+        
+        # Check if this is a dangerous delete operation that MUST bypass "Always Allow" cache
+        is_delete = False
+        if name == "run_terminal":
+            cmd = args.get("command", "")
+            if re.search(r'\brm\b|\brmdir\b', cmd):
+                is_delete = True
+        
+        # If not a delete operation, and user already selected "Always Allow", skip prompting
+        if not is_delete and perm_key in self.granted_permissions:
+            return False
+
+        if name in {"write_python", "run_terminal"}:
             return True
         if name == "file_editor" and args.get("op") in {"write", "append", "replace"}:
             return True
         return False
-
     def _format_permission_detail(self, name: str, args: dict) -> str:
         if name == "run_terminal":
-            return f"执行终端命令: `{args.get('command', '')}`"
+            cwd_info = self.user_cwd or "/Users/lhy/Desktop/Skills探索/test（默认沙箱）"
+            return f"执行终端命令: `{args.get('command', '')}`\n工作目录: {cwd_info}"
         if name == "open_terminal":
             return f"在 Terminal.app 中执行: `{args.get('command', '')}`，工作目录: {args.get('directory', '默认沙箱')}"
         if name == "write_python":
@@ -120,8 +225,7 @@ class ChatOrchestrator:
             {"type": "function", "function": {"name": "get_system_info", "description": "获取系统运行指标", "parameters": {"type": "object", "properties": {}}}},
             {"type": "function", "function": {"name": "get_current_time", "description": "获取当前北京时间", "parameters": {"type": "object", "properties": {}}}},
             {"type": "function", "function": {"name": "file_editor", "description": "文件编辑工具", "parameters": {"type": "object", "properties": {"op": {"type": "string", "enum": ["list", "read", "write", "append", "replace"]}, "folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}}, "required": ["op", "folder"]}}},
-            {"type": "function", "function": {"name": "run_terminal", "description": "在沙箱执行命令", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}}},
-            {"type": "function", "function": {"name": "open_terminal", "description": "在真实终端执行命令", "parameters": {"type": "object", "properties": {"command": {"type": "string"}, "directory": {"type": "string"}}, "required": ["command"]}}},
+            {"type": "function", "function": {"name": "run_terminal", "description": "在当前工作目录执行终端命令", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "要执行的命令"}}, "required": ["command"]}}},
             {"type": "function", "function": {"name": "write_python", "description": "安全写入 Python 文件", "parameters": {"type": "object", "properties": {"folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}}, "required": ["folder", "file", "content"]}}},
             {"type": "function", "function": {"name": "memory_save", "description": "保存长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}},
             {"type": "function", "function": {"name": "memory_forget", "description": "删除长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}}
@@ -158,6 +262,8 @@ class ChatOrchestrator:
     def clear_history(self):
         self.messages = [{"role": "system", "content": self._build_system_prompt(self.load_memory())}]
         self.granted_permissions = set()
+        self._conversations[self.active_conversation_id]["name"] = "新对话"
+        self._save_conversations()
 
     async def handle_tool_call(self, tool_call: Dict[str, Any]) -> str:
         name = tool_call["function"]["name"]
@@ -191,19 +297,15 @@ class ChatOrchestrator:
 
             if name == "run_terminal":
                 command = args.get("command", "")
-                proc = subprocess.run(["python3", str(self.skills_root / "terminal/scripts/run_command.py"), command], text=True, capture_output=True, encoding="utf-8")
+                cmd = ["python3", str(self.skills_root / "terminal/scripts/run_command.py"), command]
+                if self.user_cwd:
+                    cmd += ["--cwd", self.user_cwd]
+                proc = subprocess.run(cmd, text=True, capture_output=True, encoding="utf-8")
                 return proc.stdout.strip() or proc.stderr.strip()
 
             if name == "write_python":
                 folder, file, content = args.get("folder", ""), args.get("file", ""), args.get("content", "")
                 proc = subprocess.run(["python3", str(self.skills_root / "python_writer/scripts/write_python.py"), f"--folder={folder}", f"--file={file}", f"--content={content}"], text=True, capture_output=True, encoding="utf-8")
-                return proc.stdout.strip() or proc.stderr.strip()
-
-            if name == "open_terminal":
-                command, directory = args.get("command", ""), args.get("directory", "")
-                cmd_args = ["python3", str(self.skills_root / "macos_terminal/scripts/open_terminal.py"), command]
-                if directory: cmd_args.append(directory)
-                proc = subprocess.run(cmd_args, text=True, capture_output=True, encoding="utf-8")
                 return proc.stdout.strip() or proc.stderr.strip()
 
             if name == "memory_save":
@@ -241,10 +343,16 @@ class ChatOrchestrator:
 
     async def chat(self, user_input: str) -> Dict[str, Any]:
         self._aborted = False
+        # Auto-name conversation from first user message
+        conv = self._conversations[self.active_conversation_id]
+        if not any(m["role"] == "user" for m in conv["messages"]):
+            conv["name"] = user_input[:25] + ("…" if len(user_input) > 25 else "")
         self.messages.append({"role": "user", "content": user_input})
-        return await self._run_chat_loop()
+        result = await self._run_chat_loop()
+        self._save_conversations()
+        return result
 
-    async def resume_after_permission(self, granted: bool) -> Dict[str, Any]:
+    async def resume_after_permission(self, granted: bool, always_allow: bool = False) -> Dict[str, Any]:
         """Resume conversation after user responds to a permission request."""
         if not self._pending_permission:
             return {"role": "assistant", "content": "没有待处理的权限请求。"}
@@ -254,7 +362,8 @@ class ChatOrchestrator:
         args = self._pending_permission["args"]
 
         if granted:
-            self.granted_permissions.add(self._permission_key(name, args))
+            if always_allow:
+                self.granted_permissions.add(self._permission_key(name, args))
             result = await self.handle_tool_call(tc)
         else:
             result = "用户拒绝了此操作，已取消执行。"
@@ -265,7 +374,9 @@ class ChatOrchestrator:
             "content": result
         })
         self._pending_permission = None
-        return await self._run_chat_loop()
+        result = await self._run_chat_loop()
+        self._save_conversations()
+        return result
 
     async def _run_chat_loop(self) -> Dict[str, Any]:
         while True:

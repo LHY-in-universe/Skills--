@@ -41,11 +41,15 @@ def check_path(folder: str, filename: str) -> Path:
         errors.append(f"文件名必须以 .py 结尾，当前: {filename}")
 
     folder_path = Path(folder).expanduser().resolve()
-    if not str(folder_path).startswith(str(ALLOWED_ROOT)):
+    try:
+        folder_path.relative_to(ALLOWED_ROOT)
+    except ValueError:
         errors.append(f"目标文件夹超出允许范围（必须在 {ALLOWED_ROOT} 内）")
 
     target = (folder_path / filename).resolve()
-    if not str(target).startswith(str(ALLOWED_ROOT)):
+    try:
+        target.relative_to(ALLOWED_ROOT)
+    except ValueError:
         errors.append("目标文件路径超出允许范围")
 
     if target.exists():

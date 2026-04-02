@@ -470,6 +470,13 @@ textarea {
 .perm-btn:hover { opacity: 0.85; transform: scale(1.02); }
 .perm-btn:active { transform: scale(0.97); }
 
+.perm-btn.always {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+  margin-right: auto;
+}
+
 .perm-btn.deny {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
@@ -494,3 +501,104 @@ textarea {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 .light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+
+/* ========================
+   Desktop Sprite Mode (Electron)
+   ======================== */
+
+body.desktop-mode {
+  background-color: rgba(13, 15, 20, 0.93) !important;
+  background-image: none !important;
+  padding-top: 36px;
+}
+
+body.desktop-mode.light-mode {
+  background-color: rgba(240, 244, 248, 0.95) !important;
+}
+
+body.desktop-mode #root {
+  height: calc(100vh - 36px);
+  border-radius: 0 0 1rem 1rem;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Drag bar fixed at top of window */
+.desktop-drag-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: rgba(15, 17, 24, 0.92);
+  backdrop-filter: blur(16px);
+  border-radius: 1rem 1rem 0 0;
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.light-mode .desktop-drag-bar {
+  background: rgba(240, 244, 248, 0.95);
+}
+
+.desktop-drag-bar .drag-region {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.desktop-drag-bar .no-drag {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.desktop-drag-bar .no-drag:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.light-mode .desktop-drag-bar .no-drag:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Compact bubble */
+.desktop-bubble {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.55);
+  transition: transform 0.2s, box-shadow 0.2s;
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 4px;
+  left: 4px;
+}
+
+.desktop-bubble:hover {
+  transform: scale(1.12);
+  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.75);
+}

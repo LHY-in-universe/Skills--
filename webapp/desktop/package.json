@@ -1,0 +1,13 @@
+{
+  "name": "ai-desktop-sprite",
+  "version": "1.0.0",
+  "description": "Desktop sprite wrapper for AI skill system",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:dev": "ELECTRON_DEV=true electron ."
+  },
+  "dependencies": {
+    "electron": "^31.0.0"
+  }
+}

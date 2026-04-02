@@ -4,7 +4,7 @@ import MarkdownIt from 'markdown-it'
 
 const messages = inject('messages')
 const isTyping = inject('isTyping')
-const md = new MarkdownIt()
+const md = new MarkdownIt({ html: false, linkify: false })
 const container = ref(null)
 
 // Track expanded state for tool messages by index

@@ -14,7 +14,9 @@ ALLOWED_ROOT = Path("/Users/lhy/Desktop/Skills探索/test").resolve()
 
 def check_within_allowed(path: Path):
     """确保路径在 ALLOWED_ROOT 内，否则退出"""
-    if not str(path).startswith(str(ALLOWED_ROOT)):
+    try:
+        path.relative_to(ALLOWED_ROOT)
+    except ValueError:
         print(json.dumps({"error": f"权限拒绝：操作必须限定在 {ALLOWED_ROOT} 内"}, ensure_ascii=False))
         sys.exit(1)
 
