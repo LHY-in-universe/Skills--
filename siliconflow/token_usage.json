@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "global": {
+    "calls": 108,
+    "prompt": 84298,
+    "completion": 16156,
+    "total": 100454,
+    "by_type": {
+      "chat": {
+        "calls": 30,
+        "prompt": 76905,
+        "completion": 15978,
+        "total": 92883
+      },
+      "router": {
+        "calls": 3,
+        "prompt": 0,
+        "completion": 0,
+        "total": 0
+      },
+      "compress": {
+        "calls": 2,
+        "prompt": 6361,
+        "completion": 178,
+        "total": 6539
+      },
+      "embedding_ctx": {
+        "calls": 36,
+        "prompt": 612,
+        "completion": 0,
+        "total": 612
+      },
+      "embedding_mem": {
+        "calls": 37,
+        "prompt": 420,
+        "completion": 0,
+        "total": 420
+      }
+    }
+  },
+  "daily": {
+    "2026-04-04": {
+      "calls": 53,
+      "prompt": 45882,
+      "completion": 6702,
+      "total": 52584,
+      "by_type": {
+        "embedding_mem": {
+          "calls": 18,
+          "prompt": 224,
+          "completion": 0,
+          "total": 224
+        },
+        "embedding_ctx": {
+          "calls": 17,
+          "prompt": 289,
+          "completion": 0,
+          "total": 289
+        },
+        "chat": {
+          "calls": 17,
+          "prompt": 42699,
+          "completion": 6630,
+          "total": 49329
+        },
+        "compress": {
+          "calls": 1,
+          "prompt": 2670,
+          "completion": 72,
+          "total": 2742
+        }
+      }
+    },
+    "2026-04-05": {
+      "calls": 55,
+      "prompt": 38416,
+      "completion": 9454,
+      "total": 47870,
+      "by_type": {
+        "embedding_ctx": {
+          "calls": 19,
+          "prompt": 323,
+          "completion": 0,
+          "total": 323
+        },
+        "embedding_mem": {
+          "calls": 19,
+          "prompt": 196,
+          "completion": 0,
+          "total": 196
+        },
+        "chat": {
+          "calls": 13,
+          "prompt": 34206,
+          "completion": 9348,
+          "total": 43554
+        },
+        "router": {
+          "calls": 3,
+          "prompt": 0,
+          "completion": 0,
+          "total": 0
+        },
+        "compress": {
+          "calls": 1,
+          "prompt": 3691,
+          "completion": 106,
+          "total": 3797
+        }
+      }
+    }
+  },
+  "by_model": {
+    "BAAI/bge-m3": {
+      "calls": 73,
+      "prompt": 1032,
+      "completion": 0,
+      "total": 1032
+    },
+    "Qwen/Qwen3.5-4B": {
+      "calls": 26,
+      "prompt": 71494,
+      "completion": 9703,
+      "total": 81197
+    },
+    "Qwen/Qwen3.5-27B": {
+      "calls": 4,
+      "prompt": 5411,
+      "completion": 6275,
+      "total": 11686
+    },
+    "Qwen/Qwen2.5-7B-Instruct": {
+      "calls": 5,
+      "prompt": 6361,
+      "completion": 178,
+      "total": 6539
+    }
+  }
+}
