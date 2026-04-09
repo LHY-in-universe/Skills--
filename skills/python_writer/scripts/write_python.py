@@ -11,7 +11,7 @@ Python 文件安全写入技能脚本
 """
 
 # ── 1. 路径限制 ────────────────────────────────────────────────
-ALLOWED_ROOT = Path("/Users/lhy/Desktop/Skills探索/test").resolve()
+ALLOWED_ROOT = (Path(__file__).resolve().parent.parent.parent.parent / "test").resolve()
 
 # ── 2. 安全限制：禁止使用的调用 ────────────────────────────────
 DANGEROUS_CALLS = [

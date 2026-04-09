@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-import os
+import json as _json
 
 from orchestrator import ChatOrchestrator
 
@@ -17,6 +18,7 @@ app.add_middleware(
         "http://localhost:5174",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        "null",  # Electron file:// protocol
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "PATCH"],
@@ -41,6 +43,22 @@ class SkillToggleRequest(BaseModel):
 class ModelAddRequest(BaseModel):
     name: str
     model_id: str
+
+class RoutingConfigRequest(BaseModel):
+    enabled: bool
+    router_model: str
+    summary_model: str = ""
+    tiers: Dict[str, str]
+
+@app.get("/api/routing")
+async def get_routing():
+    return orchestrator.router.get_config()
+
+@app.post("/api/routing")
+async def update_routing(req: RoutingConfigRequest):
+    config = {"enabled": req.enabled, "router_model": req.router_model, "summary_model": req.summary_model, "tiers": req.tiers}
+    orchestrator.router.save_config(config)
+    return {"status": "ok", "config": config}
 
 @app.get("/api/models")
 async def get_models():
@@ -86,13 +104,19 @@ async def toggle_skill(req: SkillToggleRequest):
     orchestrator.toggle_skill(req.name, req.enabled)
     return {"status": "ok", "name": req.name, "enabled": req.enabled}
 
+def _sse(event: dict) -> str:
+    return f"data: {_json.dumps(event, ensure_ascii=False)}\n\n"
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     if not orchestrator.api_key:
         raise HTTPException(status_code=400, detail="API Key is not configured.")
-    
-    response = await orchestrator.chat(req.user_input)
-    return response
+
+    async def generate():
+        async for event in orchestrator.stream_chat(req.user_input):
+            yield _sse(event)
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/api/history")
 async def get_history():
@@ -148,10 +172,9 @@ async def get_terminal_cwd():
 
 @app.post("/api/terminal/cwd")
 async def set_terminal_cwd(req: TerminalCwdRequest):
-    from pathlib import Path as P
     cwd = req.cwd.strip()
     if cwd:
-        p = P(cwd).expanduser().resolve()
+        p = Path(cwd).expanduser().resolve()
         if not p.exists() or not p.is_dir():
             raise HTTPException(status_code=400, detail=f"目录不存在: {cwd}")
         orchestrator.user_cwd = str(p)
@@ -166,14 +189,21 @@ class PermissionResumeRequest(BaseModel):
 @app.post("/api/chat/resume")
 async def resume_chat(req: PermissionResumeRequest):
     """Called after user responds to a permission dialog."""
-    response = await orchestrator.resume_after_permission(req.granted, req.always_allow)
-    return response
+    async def generate():
+        async for event in orchestrator.stream_resume_after_permission(req.granted, req.always_allow):
+            yield _sse(event)
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.post("/api/chat/abort")
 async def abort_chat():
     """Abort the current generation."""
     orchestrator.abort()
     return {"status": "ok"}
+
+@app.get("/api/token-usage")
+async def get_token_usage():
+    return orchestrator.token_tracker.get_stats()
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,4 +1,4 @@
-# 🤖 SiliconFlow AI 编排器 (Python 版)
+# 🤖 SiliconFlow AI 编排器
 
 此模块集成了 SiliconFlow 的大模型能力，允许 AI 助手通过本地技能脚本调用天气、系统信息、时钟、文件编辑、终端控制等工具。
 
@@ -13,17 +13,23 @@
 
 1. **准备环境**：确保已安装 Python 3。
 2. **安装依赖**：
+
    ```bash
    pip install -r siliconflow/requirements.txt
    ```
+
 3. **配置 API Key**：在 `siliconflow/.env` 中填写：
+
    ```
    SILICONFLOW_API_KEY=your_key_here
    ```
+
 4. **启动对话**：
+
    ```bash
    python3 siliconflow/scripts/chat.py
    ```
+
 5. **切换模型**：对话中输入 `/model`，支持以下模型：
    - `1` Qwen/Qwen3.5-27B
    - `2` deepseek-ai/DeepSeek-V3.2
@@ -41,4 +47,3 @@
 | `open_terminal` | 打开 Terminal.app 可见窗口执行命令 | 无 |
 
 ---
-*Created by Deepmind Antigravity*

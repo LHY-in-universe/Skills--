@@ -1,6 +1,6 @@
 <script setup>
-import { inject, ref, computed, onMounted } from 'vue'
-import { Cpu, Zap, Trash2, Globe, ChevronDown, FolderOpen, MessageSquarePlus, MessagesSquare } from 'lucide-vue-next'
+import { inject, ref, computed, onMounted, defineExpose } from 'vue'
+import { Cpu, Zap, Trash2, Globe, ChevronDown, FolderOpen, MessageSquarePlus, MessagesSquare, GitBranch, BarChart2 } from 'lucide-vue-next'
 
 const emit = defineEmits(['clear-history', 'refresh-data', 'toggle-theme', 'switch-conversation', 'create-conversation'])
 const models = inject('models')
@@ -11,6 +11,7 @@ const isLightMode = inject('isLightMode')
 const conversationsRef = inject('conversations')
 const activeConversationIdRef = inject('activeConversationId')
 const apiBase = inject('apiBase', '')
+const routingConfig = inject('routingConfig')
 
 const customApiUrl = ref('')
 const customApiKey = ref('')
@@ -18,6 +19,7 @@ const customModel = ref('')
 
 const isManagingModels = ref(false)
 const isApiConfigOpen = ref(false)   // collapsed by default
+const isSkillsOpen = ref(true)       // expanded by default
 const newModelName = ref('')
 const newModelId = ref('')
 
@@ -156,7 +158,54 @@ const saveTerminalCwd = async () => {
   }
 }
 
-onMounted(loadTerminalCwd)
+// Routing config
+const isRoutingOpen = ref(false)
+const routingSaveStatus = ref('')
+
+const saveRouting = async () => {
+  try {
+    const res = await fetch(`${apiBase}/api/routing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(routingConfig.value)
+    })
+    if (res.ok) {
+      routingSaveStatus.value = 'saved'
+      setTimeout(() => { routingSaveStatus.value = '' }, 2000)
+    } else {
+      routingSaveStatus.value = 'error'
+      setTimeout(() => { routingSaveStatus.value = '' }, 2000)
+    }
+  } catch {
+    routingSaveStatus.value = 'error'
+    setTimeout(() => { routingSaveStatus.value = '' }, 2000)
+  }
+}
+
+// Token usage stats
+const tokenStats = ref(null)
+const isTokenOpen = ref(false)
+
+const todayTokens = computed(() => {
+  const today = new Date().toISOString().slice(0, 10)
+  return tokenStats.value?.daily?.[today]?.total ?? 0
+})
+
+const TYPE_LABELS = {
+  chat: '对话', skill: 'Skill 调用', router: '路由',
+  compress: '压缩', embedding_ctx: '向量(上下文)', embedding_mem: '向量(记忆)'
+}
+
+const fetchTokenStats = async () => {
+  try {
+    const r = await fetch(`${apiBase}/api/token-usage`)
+    tokenStats.value = await r.json()
+  } catch {}
+}
+
+defineExpose({ fetchTokenStats })
+
+onMounted(() => { loadTerminalCwd(); fetchTokenStats() })
 </script>
 
 <template>
@@ -168,6 +217,9 @@ onMounted(loadTerminalCwd)
         {{ isLightMode ? '🌙' : '☀️' }}
       </button>
     </div>
+
+    <!-- Scrollable content area -->
+    <div class="sidebar-scroll">
 
     <!-- Conversations Section -->
     <div class="section-title" style="margin-top: 0.5rem;">
@@ -230,13 +282,139 @@ onMounted(loadTerminalCwd)
     </div>
 
     <!-- Skills Section -->
-    <div class="section-title" style="margin-top: 1.5rem;"><Zap size="14" style="margin-right: 5px;"/> ACTIVE SKILLS</div>
-    <div v-for="skill in skills" :key="skill.name" class="skill-toggle">
-      <span style="font-size: 13px;">{{ skill.name }}</span>
-      <label class="switch">
-        <input type="checkbox" :checked="skill.enabled" @change="toggleSkill(skill)">
-        <span class="slider"></span>
-      </label>
+    <div class="collapsible-section" style="margin-top: 1.5rem;">
+      <button class="collapsible-header" @click="isSkillsOpen = !isSkillsOpen">
+        <span style="display:flex;align-items:center;gap:6px;">
+          <Zap size="13"/> ACTIVE SKILLS
+          <span style="font-size:10px;color:var(--text-secondary);font-weight:500;">({{ skills.length }})</span>
+        </span>
+        <ChevronDown size="14" :style="{ transform: isSkillsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }" />
+      </button>
+      <Transition name="collapse">
+        <div v-if="isSkillsOpen" class="collapsible-body" style="padding: 8px 10px 10px;">
+          <div class="skills-scroll">
+            <div v-for="skill in skills" :key="skill.name" class="skill-toggle">
+              <span style="font-size: 13px;">{{ skill.name }}</span>
+              <label class="switch">
+                <input type="checkbox" :checked="skill.enabled" @change="toggleSkill(skill)">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </div>
+
+    <!-- Token Usage Section -->
+    <div class="collapsible-section" style="margin-top: 1.5rem;" v-if="tokenStats">
+      <button class="collapsible-header" @click="isTokenOpen = !isTokenOpen">
+        <span style="display:flex;align-items:center;gap:6px;">
+          <BarChart2 size="13"/> TOKEN USAGE
+          <span style="font-size:10px;color:var(--text-secondary);font-weight:500;">今日 {{ todayTokens.toLocaleString() }}</span>
+        </span>
+        <ChevronDown size="14" :style="{ transform: isTokenOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }" />
+      </button>
+      <Transition name="collapse">
+        <div v-if="isTokenOpen" class="collapsible-body token-body">
+          <div class="token-summary">
+            <div class="token-summary-item">
+              <span class="token-summary-label">今日</span>
+              <span class="token-summary-val">{{ todayTokens.toLocaleString() }}</span>
+            </div>
+            <div class="token-summary-sep">·</div>
+            <div class="token-summary-item">
+              <span class="token-summary-label">累计</span>
+              <span class="token-summary-val">{{ tokenStats.global.total.toLocaleString() }}</span>
+            </div>
+            <div class="token-summary-sep">·</div>
+            <div class="token-summary-item">
+              <span class="token-summary-label">调用</span>
+              <span class="token-summary-val">{{ tokenStats.global.calls }}</span>
+            </div>
+          </div>
+          <div class="token-breakdown">
+            <template v-for="(v, k) in tokenStats.global.by_type" :key="k">
+              <div v-if="v.calls > 0" class="token-row">
+                <div class="token-row-top">
+                  <span class="token-type-badge">{{ TYPE_LABELS[k] ?? k }}</span>
+                  <span class="token-row-calls">×{{ v.calls }}</span>
+                </div>
+                <div class="token-row-detail">
+                  <span class="token-detail-item prompt" title="输入 tokens">↑ {{ v.prompt.toLocaleString() }}</span>
+                  <span class="token-detail-sep">+</span>
+                  <span class="token-detail-item completion" title="输出 tokens">↓ {{ v.completion.toLocaleString() }}</span>
+                  <span class="token-detail-sep">=</span>
+                  <span class="token-detail-total">{{ v.total.toLocaleString() }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </Transition>
+    </div>
+
+    <!-- Route Strategy Section -->
+    <div class="collapsible-section" style="margin-top: 1.5rem;">
+      <button class="collapsible-header" @click="isRoutingOpen = !isRoutingOpen">
+        <span style="display:flex;align-items:center;gap:6px;">
+          <GitBranch size="13"/> ROUTE STRATEGY
+          <span v-if="routingConfig?.enabled" style="font-size:10px;background:rgba(99,102,241,0.2);color:var(--accent-color);padding:1px 6px;border-radius:10px;font-weight:700;">ON</span>
+        </span>
+        <ChevronDown size="14" :style="{ transform: isRoutingOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }" />
+      </button>
+      <Transition name="collapse">
+        <div v-if="isRoutingOpen" class="collapsible-body">
+          <!-- Enable toggle -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <span style="font-size:12px;color:var(--text-secondary);">启用模型路由</span>
+            <label class="switch">
+              <input type="checkbox" :checked="routingConfig?.enabled" @change="e => { routingConfig.enabled = e.target.checked; saveRouting() }">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <!-- Router (classifier) model -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;letter-spacing:0.04em;">分类器模型（小模型）</div>
+            <select v-model="routingConfig.router_model" style="width:100%;background:var(--input-bg);border:1px solid var(--border-color);color:var(--text-primary);height:34px;padding:0 8px;font-size:12px;border-radius:6px;outline:none;">
+              <option value="">— 未设置 —</option>
+              <option v-for="(apiId, displayName) in models" :key="apiId" :value="apiId">{{ displayName }}</option>
+              <option v-if="routingConfig.router_model && !Object.values(models).includes(routingConfig.router_model)" :value="routingConfig.router_model">{{ routingConfig.router_model }}</option>
+            </select>
+          </div>
+          <!-- Summary model -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;letter-spacing:0.04em;">摘要压缩模型</div>
+            <select v-model="routingConfig.summary_model" style="width:100%;background:var(--input-bg);border:1px solid var(--border-color);color:var(--text-primary);height:34px;padding:0 8px;font-size:12px;border-radius:6px;outline:none;">
+              <option value="">— 未设置（使用当前主模型） —</option>
+              <option v-for="(apiId, displayName) in models" :key="apiId" :value="apiId">{{ displayName }}</option>
+              <option v-if="routingConfig.summary_model && !Object.values(models).includes(routingConfig.summary_model)" :value="routingConfig.summary_model">{{ routingConfig.summary_model }}</option>
+            </select>
+            <div style="font-size:10px;color:var(--text-secondary);opacity:0.6;margin-top:3px;">用于对话历史压缩，推荐小模型</div>
+          </div>
+          <!-- Tier models -->
+          <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">
+            <div v-for="(label, tier) in { easy: '🟢 简单', medium: '🟡 中等', hard: '🔴 困难' }" :key="tier">
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;">{{ label }}</div>
+              <select v-model="routingConfig.tiers[tier]" style="width:100%;background:var(--input-bg);border:1px solid var(--border-color);color:var(--text-primary);height:32px;padding:0 8px;font-size:12px;border-radius:6px;outline:none;">
+                <option value="">— 未设置（使用默认） —</option>
+                <option v-for="(apiId, displayName) in models" :key="apiId" :value="apiId">{{ displayName }}</option>
+              </select>
+            </div>
+          </div>
+          <!-- Save button -->
+          <button
+            @click="saveRouting"
+            :style="{
+              width: '100%',
+              background: routingSaveStatus === 'saved' ? '#10b981' : routingSaveStatus === 'error' ? '#ef4444' : 'var(--accent-color)',
+              border: 'none', color: 'white', padding: '7px', borderRadius: '5px',
+              cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'background 0.2s'
+            }"
+          >
+            {{ routingSaveStatus === 'saved' ? '✓ 已保存' : routingSaveStatus === 'error' ? '✕ 保存失败' : '保存路由配置' }}
+          </button>
+        </div>
+      </Transition>
     </div>
 
     <!-- Terminal Working Directory -->
@@ -265,8 +443,10 @@ onMounted(loadTerminalCwd)
       <p class="cwd-hint">此设置优先级高于 AI 的路径选择</p>
     </div>
 
+    </div><!-- end sidebar-scroll -->
+
     <!-- Bottom Actions -->
-    <div style="margin-top: auto; display: flex; gap: 10px; flex-direction: column; padding-top: 1rem;">
+    <div class="sidebar-bottom">
 
       <!-- API Config — collapsible at bottom -->
       <div class="collapsible-section">
@@ -527,11 +707,94 @@ onMounted(loadTerminalCwd)
   margin: 0;
 }
 
+/* Skills list */
+.skills-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Sidebar scroll layout */
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  min-height: 0;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.sidebar-bottom {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+  padding-top: 1rem;
+  flex-shrink: 0;
+}
+
+/* Token Usage */
+.token-body { padding: 10px 12px 12px; }
+
+.token-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+.token-summary-item { display: flex; flex-direction: column; align-items: center; flex: 1; }
+.token-summary-label { font-size: 10px; color: var(--text-secondary); opacity: 0.7; }
+.token-summary-val { font-size: 13px; font-weight: 700; color: var(--accent-color); font-family: 'Fira Code', monospace; }
+.token-summary-sep { color: var(--border-color); font-size: 16px; }
+
+.token-breakdown { display: flex; flex-direction: column; gap: 6px; }
+.token-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--input-bg);
+}
+.token-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.token-type-badge { font-size: 11px; font-weight: 600; color: var(--text-primary); }
+.token-row-calls { font-size: 10px; color: var(--text-secondary); opacity: 0.5; }
+.token-row-detail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+}
+.token-detail-item { }
+.token-detail-item.prompt { color: #60a5fa; }
+.token-detail-item.completion { color: #34d399; }
+.token-detail-sep { color: var(--text-secondary); opacity: 0.4; font-size: 10px; }
+.token-detail-total { font-size: 12px; font-weight: 700; color: var(--accent-color); margin-left: 2px; }
+
 /* Collapse transition */
 .collapse-enter-active,
 .collapse-leave-active {
   transition: max-height 0.25s ease, opacity 0.2s ease;
-  max-height: 300px;
+  max-height: 600px;
   overflow: hidden;
 }
 .collapse-enter-from,

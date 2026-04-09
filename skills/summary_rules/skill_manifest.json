@@ -1,0 +1,21 @@
+{
+  "tool_name": "summary_rules",
+  "skill_dir": "summary_rules",
+  "script": "scripts/manage_rules.py",
+  "description": "管理历史对话压缩时的摘要注意事项规则。支持列出(list)、添加(add)、删除(remove)、清空(clear)规则。规则会在每次压缩历史时自动注入摘要提示词。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "op": {
+        "type": "string",
+        "enum": ["list", "add", "remove", "clear"],
+        "description": "操作类型：list=列出所有规则，add=添加规则，remove=删除规则（支持文本或序号），clear=清空所有规则"
+      },
+      "rule": {
+        "type": "string",
+        "description": "规则内容（add 时为规则文本；remove 时为规则文本或序号如 '1'）"
+      }
+    },
+    "required": ["op"]
+  }
+}

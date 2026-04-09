@@ -10,7 +10,7 @@ from pathlib import Path
 所有操作强制限定在 ALLOWED_ROOT 内
 """
 
-ALLOWED_ROOT = Path("/Users/lhy/Desktop/Skills探索/test").resolve()
+ALLOWED_ROOT = (Path(__file__).resolve().parent.parent.parent.parent / "test").resolve()
 
 def check_within_allowed(path: Path):
     """确保路径在 ALLOWED_ROOT 内，否则退出"""

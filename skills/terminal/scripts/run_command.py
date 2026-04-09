@@ -10,7 +10,7 @@ from pathlib import Path
 在指定目录（或默认沙箱）内执行白名单命令，禁止路径穿越和危险操作
 """
 
-DEFAULT_SANDBOX = Path("/Users/lhy/Desktop/Skills探索/test").resolve()
+DEFAULT_SANDBOX = (Path(__file__).resolve().parent.parent.parent.parent / "test").resolve()
 
 # 允许的命令白名单
 ALLOWED_COMMANDS = {

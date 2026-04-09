@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "router_model": "Qwen/Qwen2.5-7B-Instruct",
+  "summary_model": "Qwen/Qwen2.5-7B-Instruct",
+  "tiers": {
+    "easy": "Qwen/Qwen3.5-4B",
+    "medium": "Qwen/Qwen3.5-27B",
+    "hard": "Qwen/Qwen3.5-397B-A17B"
+  }
+}

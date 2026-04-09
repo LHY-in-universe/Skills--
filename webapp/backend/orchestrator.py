@@ -1,15 +1,35 @@
-import os
 import re
 import json
 import uuid
 import time
 import subprocess
 import requests
-import asyncio
+import httpx
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
+from context_manager import ContextManager
+from memory_manager import MemoryManager
+from router import ModelRouter
+from token_tracker import TokenTracker
 
 class ChatOrchestrator:
+    # Tools to always include regardless of query content
+    _ALWAYS_TOOLS = {"get_current_time", "memory_save", "memory_forget", "write_memory"}
+
+    # Keyword → tool name mapping for dynamic filtering (medium tier)
+    _TOOL_KEYWORDS: Dict[str, List[str]] = {
+        "get_weather":      ["天气", "weather", "温度", "下雨", "晴", "气温"],
+        "get_system_info":  ["系统", "cpu", "内存", "memory", "磁盘", "进程", "system"],
+        "run_terminal":     ["命令", "终端", "执行", "运行", "terminal", "bash", "shell",
+                             "ls", "git", "pip", "brew", "install"],
+        "write_python":     ["python", "代码", "脚本", "程序", "写一个", ".py", "函数",
+                             "class", "import", "script"],
+        "file_editor":      ["文件", "读取", "写入", "目录", "folder", "file", "路径",
+                             "read", "write", "列出", "查看文件"],
+        "pip_venv":         ["pip", "install", "安装", "包", "库", "依赖", "uninstall",
+                             "卸载", "requirements", "venv", "虚拟环境"],
+    }
+
     def __init__(self, project_root: Path):
         self.project_root = project_root
         self.skills_root = project_root / "skills"
@@ -37,6 +57,30 @@ class ChatOrchestrator:
         self._conversations: Dict[str, Any] = {}
         self.active_conversation_id: str = ""
         self._load_conversations()
+
+        _base = self.api_url.rsplit("/chat/completions", 1)[0]
+        self.memory_manager = MemoryManager(
+            memory_dir=self.project_root / "siliconflow" / "memory",
+            api_key=self.api_key,
+            api_base_url=_base,
+        )
+        self.memory_manager.index_all()
+        self.context_manager = ContextManager(
+            api_key=self.api_key,
+            api_base_url=_base,
+            embeddings_path=self.project_root / "siliconflow" / "conversation_embeddings.json",
+            chat_model=self.current_model,
+            memory_manager=self.memory_manager,
+        )
+        self.router = ModelRouter(
+            api_key=self.api_key,
+            api_base_url=_base,
+            config_path=self.project_root / "siliconflow" / "routing_config.json",
+        )
+        self.token_tracker = TokenTracker(project_root / "siliconflow" / "token_usage.json")
+        self.router.token_tracker = self.token_tracker
+        self.context_manager.token_tracker = self.token_tracker
+        self.memory_manager.token_tracker = self.token_tracker
 
     def _load_models(self) -> Dict[str, str]:
         if not self.models_path.exists():
@@ -81,6 +125,11 @@ class ChatOrchestrator:
                 pass
         if not self._conversations or self.active_conversation_id not in self._conversations:
             self._new_conversation_internal()
+        else:
+            # Restore active conversation's preferred model
+            conv_model = self._conversations[self.active_conversation_id].get("model", "")
+            if conv_model:
+                self.current_model = conv_model
 
     def _save_conversations(self):
         self.conversations_path.write_text(
@@ -95,6 +144,7 @@ class ChatOrchestrator:
             "id": conv_id,
             "name": name,
             "created_at": time.time(),
+            "model": self.current_model,
             "messages": [{"role": "system", "content": self._build_system_prompt(self.load_memory())}]
         }
         self.active_conversation_id = conv_id
@@ -128,12 +178,18 @@ class ChatOrchestrator:
         self._aborted = True
         self._pending_permission = None
         self.active_conversation_id = conv_id
+        # Restore this conversation's preferred model
+        conv_model = self._conversations[conv_id].get("model", "")
+        if conv_model:
+            self.current_model = conv_model
+            self.context_manager.chat_model = conv_model
         self._save_conversations()
 
     def delete_conversation(self, conv_id: str):
         if conv_id not in self._conversations:
             raise ValueError(f"对话不存在: {conv_id}")
         del self._conversations[conv_id]
+        self.context_manager.drop_conversation(conv_id)
         if not self._conversations:
             self._new_conversation_internal()
         elif self.active_conversation_id == conv_id:
@@ -169,6 +225,8 @@ class ChatOrchestrator:
             return True
         if name == "file_editor" and args.get("op") in {"write", "append", "replace"}:
             return True
+        if name == "pip_venv" and args.get("action") in {"install", "uninstall"}:
+            return True
         return False
     def _format_permission_detail(self, name: str, args: dict) -> str:
         if name == "run_terminal":
@@ -185,6 +243,11 @@ class ChatOrchestrator:
             body = args.get("content") or args.get("new", "")
             preview = body[:200] + ("…" if len(body) > 200 else "")
             return f"文件 {op} 操作: `{args.get('folder', '')}/{args.get('file', '')}`，内容: {preview}"
+        if name == "pip_venv":
+            action = args.get("action", "install")
+            package = args.get("package", "")
+            venv = args.get("venv_path", "") or "webapp/backend/venv（默认）"
+            return f"pip {action}: `{package}`\n虚拟环境: {venv}"
         return str(args)
 
     def abort(self):
@@ -202,9 +265,11 @@ class ChatOrchestrator:
         if self.env_path.exists():
             with open(self.env_path, "r", encoding="utf-8") as f:
                 for line in f:
-                    if "=" in line:
-                        key, value = line.strip().split("=", 1)
-                        env[key] = value
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    env[key.strip()] = value.strip()
         return env
 
     def load_memory(self) -> Dict[str, Any]:
@@ -227,8 +292,9 @@ class ChatOrchestrator:
             {"type": "function", "function": {"name": "file_editor", "description": "文件编辑工具", "parameters": {"type": "object", "properties": {"op": {"type": "string", "enum": ["list", "read", "write", "append", "replace"]}, "folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}}, "required": ["op", "folder"]}}},
             {"type": "function", "function": {"name": "run_terminal", "description": "在当前工作目录执行终端命令", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "要执行的命令"}}, "required": ["command"]}}},
             {"type": "function", "function": {"name": "write_python", "description": "安全写入 Python 文件", "parameters": {"type": "object", "properties": {"folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}}, "required": ["folder", "file", "content"]}}},
-            {"type": "function", "function": {"name": "memory_save", "description": "保存长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}},
-            {"type": "function", "function": {"name": "memory_forget", "description": "删除长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}}
+            {"type": "function", "function": {"name": "memory_save", "description": "保存结构化长期记忆（键值对，如用户名/偏好等）", "parameters": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}},
+            {"type": "function", "function": {"name": "memory_forget", "description": "删除结构化长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
+            {"type": "function", "function": {"name": "write_memory", "description": "将重要信息永久写入长期记忆文件（Markdown），供未来对话语义检索。适合记录事件、决策、用户需求、项目背景等自由文本。", "parameters": {"type": "object", "properties": {"content": {"type": "string", "description": "要记录的内容，尽量完整具体"}, "tag": {"type": "string", "description": "标签，如「用户偏好」「项目信息」「重要决策」等（可选）"}}, "required": ["content"]}}}
         ]
         
         # Load registry
@@ -249,12 +315,59 @@ class ChatOrchestrator:
         return tools
 
     def update_config(self, api_url: Optional[str] = None, api_key: Optional[str] = None, model: Optional[str] = None):
-        if api_url: self.api_url = api_url
-        if api_key: self.api_key = api_key
-        if model: self.current_model = model
+        if api_url:
+            self.api_url = api_url
+            self.context_manager.api_base_url = api_url
+            self.router.api_base_url = api_url
+            self.memory_manager.api_base_url = api_url
+        if api_key:
+            self.api_key = api_key
+            self.context_manager.api_key = api_key
+            self.router.api_key = api_key
+            self.memory_manager.api_key = api_key
+        if model:
+            self.current_model = model
+            self.context_manager.chat_model = model
+            if self.active_conversation_id in self._conversations:
+                self._conversations[self.active_conversation_id]["model"] = model
+                self._save_conversations()
 
     def get_enabled_tools(self) -> List[Dict[str, Any]]:
         return [t for t in self.tools if self.active_skills.get(t["function"]["name"], False)]
+
+    def _select_tools(self, query: str, tier: str) -> List[Dict[str, Any]]:
+        """Return the tool subset to include in the API call.
+
+        easy  → no tools (pure chat, no overhead)
+        hard  → all enabled tools
+        medium / unknown → keyword-filtered; falls back to all if nothing matches
+        """
+        all_enabled = self.get_enabled_tools()
+
+        if tier == "easy":
+            print(f"[Tools] easy tier — no tools sent", flush=True)
+            return []
+
+        if tier == "hard" or not tier:
+            return all_enabled
+
+        # medium: keyword filtering
+        q = query.lower()
+        selected: set = set(self._ALWAYS_TOOLS)
+        for name, keywords in self._TOOL_KEYWORDS.items():
+            if any(kw in q for kw in keywords):
+                selected.add(name)
+
+        filtered = [t for t in all_enabled if t["function"]["name"] in selected]
+
+        # If only the always-include tools matched, fall back to all tools to be safe
+        specific = [t for t in filtered if t["function"]["name"] not in self._ALWAYS_TOOLS]
+        if not specific:
+            return all_enabled
+
+        print(f"[Tools] medium tier — sending {len(filtered)}/{len(all_enabled)} tools: "
+              f"{[t['function']['name'] for t in filtered]}", flush=True)
+        return filtered
 
     def toggle_skill(self, name: str, enabled: bool):
         self.active_skills[name] = enabled
@@ -326,6 +439,14 @@ class ChatOrchestrator:
                     return json.dumps({"ok": True}, ensure_ascii=False)
                 return json.dumps({"error": "Key not found"}, ensure_ascii=False)
 
+            if name == "write_memory":
+                content = args.get("content", "").strip()
+                tag = args.get("tag", "AI手动写入")
+                if not content:
+                    return json.dumps({"error": "content is empty"}, ensure_ascii=False)
+                self.memory_manager.append(content, source=tag)
+                return json.dumps({"ok": True, "message": f"已写入长期记忆（{tag}）"}, ensure_ascii=False)
+
             # Registry Skills
             if self.registry_path.exists():
                 try:
@@ -341,114 +462,269 @@ class ChatOrchestrator:
             return f"Error executing tool: {str(e)}"
         return "Unknown tool"
 
-    async def chat(self, user_input: str) -> Dict[str, Any]:
+    async def stream_chat(self, user_input: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """Entry point for streaming chat. Yields SSE-style dicts."""
         self._aborted = False
-        # Auto-name conversation from first user message
+        _original_model = self.current_model
+        routed_model, tier = await self.router.route(user_input)
+        if routed_model:
+            self.current_model = routed_model
+
         conv = self._conversations[self.active_conversation_id]
         if not any(m["role"] == "user" for m in conv["messages"]):
             conv["name"] = user_input[:25] + ("…" if len(user_input) > 25 else "")
+        # Remove stale user message left by a previously failed request
+        if self.messages and self.messages[-1]["role"] == "user":
+            self.messages.pop()
         self.messages.append({"role": "user", "content": user_input})
-        result = await self._run_chat_loop()
+
+        # Tell the frontend which model will respond before any tokens arrive
+        yield {
+            "type": "start",
+            "_model": routed_model if routed_model else _original_model,
+            "_tier": tier or "",
+        }
+
+        last_type = None
+        async for event in self._stream_chat_loop(tier=tier, query=user_input):
+            last_type = event.get("type")
+            yield event
+
+        # Only restore if routing actually overrode the model and it wasn't
+        # changed externally (e.g. user switched model mid-stream)
+        if routed_model and self.current_model == routed_model:
+            self.current_model = _original_model
         self._save_conversations()
-        return result
 
-    async def resume_after_permission(self, granted: bool, always_allow: bool = False) -> Dict[str, Any]:
-        """Resume conversation after user responds to a permission request."""
+        if last_type not in ("permission_required", "aborted", "error"):
+            yield {
+                "type": "done",
+                "_model": routed_model if routed_model else _original_model,
+                "_tier": tier or "",
+            }
+
+    async def stream_resume_after_permission(self, granted: bool, always_allow: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
+        """Resume after permission dialog. Yields SSE-style dicts."""
         if not self._pending_permission:
-            return {"role": "assistant", "content": "没有待处理的权限请求。"}
+            yield {"type": "error", "content": "没有待处理的权限请求。"}
+            return
 
-        tc = self._pending_permission["tool_call"]
+        tc   = self._pending_permission["tool_call"]
         name = self._pending_permission["name"]
         args = self._pending_permission["args"]
+        self._pending_permission = None
 
-        if granted:
+        if not granted:
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": "用户拒绝了此操作，已取消执行。"
+            })
+        else:
             if always_allow:
                 self.granted_permissions.add(self._permission_key(name, args))
+            yield {"type": "tool_start", "name": name}
             result = await self.handle_tool_call(tc)
-        else:
-            result = "用户拒绝了此操作，已取消执行。"
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            })
+            yield {"type": "tool_done", "name": name}
 
-        self.messages.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": result
-        })
-        self._pending_permission = None
-        result = await self._run_chat_loop()
+        last_type = None
+        async for event in self._stream_chat_loop(tier="hard", query=""):
+            last_type = event.get("type")
+            yield event
+
         self._save_conversations()
-        return result
 
-    async def _run_chat_loop(self) -> Dict[str, Any]:
-        while True:
+        if last_type not in ("permission_required", "aborted", "error"):
+            yield {"type": "done", "_model": self.current_model, "_tier": ""}
+
+    async def _stream_chat_loop(self, tier: str = "", query: str = "") -> AsyncGenerator[Dict[str, Any], None]:
+        """Async generator: streams LLM output as SSE-style dicts, handles tool calls."""
+        _routing = self.router.get_config()
+        _summary_model = _routing.get("summary_model", "").strip() or self.current_model
+
+        _loop_count = 0
+        _in_tool_loop = False  # True after first tool execution
+        while _loop_count < 10:
             if self._aborted:
-                return {"role": "assistant", "content": "⏹️ 已停止。"}
+                yield {"type": "aborted"}
+                return
 
-            enabled_tools = self.get_enabled_tools()
-            payload = {
+            # Strip garbage assistant messages (< 5 chars, no tool_calls) left by interrupted streams
+            self.messages = [
+                m for m in self.messages
+                if not (
+                    m.get("role") == "assistant"
+                    and not m.get("tool_calls")
+                    and len((m.get("content") or "").strip()) < 5
+                )
+            ]
+
+            enabled_tools = self._select_tools(query, tier)
+            api_msgs, compressed_msgs = self.context_manager.prepare_messages(
+                conv_id=self.active_conversation_id,
+                messages=self.messages,
+                user_query=next(
+                    (m["content"] for m in reversed(self.messages)
+                     if m["role"] == "user" and isinstance(m.get("content"), str)),
+                    ""
+                ),
+                chat_model=_summary_model,
+            )
+            self.messages = compressed_msgs
+            payload: Dict[str, Any] = {
                 "model": self.current_model,
-                "messages": self.messages
+                "messages": api_msgs,
+                "stream": True,
             }
             if enabled_tools:
                 payload["tools"] = enabled_tools
                 payload["tool_choice"] = "auto"
 
-            try:
-                response = requests.post(
-                    self.api_url,
-                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                    json=payload,
-                    timeout=60
-                )
-                response.raise_for_status()
-                data = response.json()
+            full_content = ""
+            tool_calls_acc: Dict[int, Dict] = {}
+            _stream_usage: Dict = {}
 
-                assistant_msg = data["choices"][0]["message"]
-                self.messages.append(assistant_msg)
+            _api_retries = 2
+            for _attempt in range(_api_retries + 1):
+              try:
+                _timeout = httpx.Timeout(connect=15.0, read=300.0, write=15.0, pool=15.0)
+                async with httpx.AsyncClient(timeout=_timeout, trust_env=False) as client:
+                    async with client.stream(
+                        "POST",
+                        self.api_url,
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                    ) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if self._aborted:
+                                yield {"type": "aborted"}
+                                return
+                            if not line.startswith("data: "):
+                                continue
+                            raw = line[6:]
+                            if raw == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(raw)
+                            except Exception:
+                                continue
+                            if chunk.get("usage"):
+                                _stream_usage = chunk["usage"]
+                            if not chunk.get("choices"):
+                                continue
+                            choice = chunk["choices"][0]
+                            delta = choice.get("delta", {})
 
-                if assistant_msg.get("tool_calls"):
-                    for tool_call in assistant_msg["tool_calls"]:
-                        if self._aborted:
-                            return {"role": "assistant", "content": "⏹️ 已停止。"}
+                            text = delta.get("content") or ""
+                            if text:
+                                full_content += text
+                                yield {"type": "text", "content": text}
 
-                        name = tool_call["function"]["name"]
-                        
-                        # Verify the tool is actually enabled before processing
-                        if not self.active_skills.get(name, False):
-                            self.messages.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call["id"],
-                                "content": f"Error: Tool '{name}' is explicitly disabled by the user and cannot be executed."
-                            })
-                            continue
+                            for tc_d in delta.get("tool_calls", []):
+                                idx = tc_d["index"]
+                                if idx not in tool_calls_acc:
+                                    tool_calls_acc[idx] = {
+                                        "id": "", "type": "function",
+                                        "function": {"name": "", "arguments": ""}
+                                    }
+                                tc = tool_calls_acc[idx]
+                                if tc_d.get("id"):
+                                    tc["id"] = tc_d["id"]
+                                fn = tc_d.get("function", {})
+                                tc["function"]["name"] += fn.get("name", "")
+                                tc["function"]["arguments"] += fn.get("arguments", "")
+                break  # success — exit retry loop
 
-                        try:
-                            args = json.loads(tool_call["function"]["arguments"])
-                        except Exception:
-                            args = {}
+              except Exception as e:
+                err_msg = str(e)
+                is_interrupted = ("incomplete" in err_msg.lower() or "peer closed" in err_msg.lower() or "read timeout" in err_msg.lower() or "server disconnected" in err_msg.lower())
+                # Retry if nothing was received yet and it's a connection-level failure
+                if not full_content and not tool_calls_acc and is_interrupted and _attempt < _api_retries:
+                    import asyncio
+                    print(f"[Chat] connection dropped before response, retrying ({_attempt + 1}/{_api_retries})...", flush=True)
+                    await asyncio.sleep(1)
+                    continue
+                # Partial meaningful content — save and fall through
+                if full_content and len(full_content) >= 10 and is_interrupted:
+                    print(f"[Chat] stream interrupted ({type(e).__name__}), saving partial content ({len(full_content)} chars)", flush=True)
+                    break  # fall through to commit
+                else:
+                    yield {"type": "error", "content": f"Error: {err_msg}"}
+                    return
 
-                        # Permission check — pause and ask the user via API
-                        if self._needs_permission(name, args):
-                            self._pending_permission = {
-                                "tool_call": tool_call,
-                                "name": name,
-                                "args": args
-                            }
-                            return {
-                                "type": "permission_required",
-                                "tool_name": name,
-                                "args": args,
-                                "description": self._format_permission_detail(name, args)
-                            }
+            # Record and emit token usage if captured
+            if _stream_usage:
+                pt = _stream_usage.get("prompt_tokens", 0)
+                ct = _stream_usage.get("completion_tokens", 0)
+                _call_type = "skill" if _in_tool_loop else "chat"
+                self.token_tracker.record(_call_type, self.current_model, pt, ct)
+                yield {"type": "usage", "call_type": _call_type,
+                       "prompt": pt, "completion": ct,
+                       "total": _stream_usage.get("total_tokens", pt + ct),
+                       "model": self.current_model}
 
-                        result = await self.handle_tool_call(tool_call)
-                        self.messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call["id"],
-                            "content": result
-                        })
-                    continue  # all tool calls done, loop again to get next LLM response
+            # Commit assistant message
+            tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)] if tool_calls_acc else None
+            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": full_content}
+            if tool_calls:
+                assistant_msg["tool_calls"] = tool_calls
+            self.messages.append(assistant_msg)
 
-                return {"role": "assistant", "content": assistant_msg.get("content", "")}
+            if not tool_calls:
+                return  # natural completion
 
-            except Exception as e:
-                return {"role": "assistant", "content": f"Error: {str(e)}"}
+            # Execute tool calls
+            for tool_call in tool_calls:
+                if self._aborted:
+                    yield {"type": "aborted"}
+                    return
+
+                name = tool_call["function"]["name"]
+
+                if not self.active_skills.get(name, False):
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": f"Error: Tool '{name}' is explicitly disabled by the user and cannot be executed."
+                    })
+                    continue
+
+                try:
+                    args = json.loads(tool_call["function"]["arguments"])
+                except Exception:
+                    args = {}
+
+                if self._needs_permission(name, args):
+                    self._pending_permission = {
+                        "tool_call": tool_call,
+                        "name": name,
+                        "args": args,
+                    }
+                    yield {
+                        "type": "permission_required",
+                        "tool_name": name,
+                        "args": args,
+                        "description": self._format_permission_detail(name, args),
+                    }
+                    return
+
+                yield {"type": "tool_start", "name": name}
+                result = await self.handle_tool_call(tool_call)
+                self.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": result,
+                })
+                yield {"type": "tool_done", "name": name}
+            # loop: fetch next LLM response after tool results
+            _in_tool_loop = True
+            _loop_count += 1

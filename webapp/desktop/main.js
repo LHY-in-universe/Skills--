@@ -1,28 +1,26 @@
 const { app, BrowserWindow, ipcMain, screen } = require('electron')
 const path = require('path')
 
-const isDev = process.env.ELECTRON_DEV === 'true'
-
-const SIZES = {
-  compact:  { width: 60,  height: 60  },
-  expanded: { width: 760, height: 680 },
-}
+const COMPACT  = { width: 64,  height: 64  }
+const EXPANDED = { width: 420, height: 560 }
+const MARGIN   = 16
 
 let win
 
 function createWindow() {
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
 
+  // Start in bottom-right corner, compact
   win = new BrowserWindow({
-    x: sw - SIZES.expanded.width - 20,
-    y: Math.round((sh - SIZES.expanded.height) / 2),
-    ...SIZES.expanded,
+    x: sw - COMPACT.width  - MARGIN,
+    y: sh - COMPACT.height - MARGIN,
+    ...COMPACT,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
-    skipTaskbar: false,
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -30,29 +28,32 @@ function createWindow() {
     },
   })
 
-  if (isDev) {
-    win.loadURL('http://localhost:5173')
-    win.webContents.openDevTools({ mode: 'detach' })
-  } else {
-    win.loadFile(path.join(__dirname, '../frontend/dist/index.html'))
-  }
-
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.executeJavaScript("document.body.classList.add('desktop-mode')")
-  })
+  win.loadFile(path.join(__dirname, 'sprite.html'))
 }
 
-ipcMain.on('toggle-compact', (event, isCompact) => {
-  const size = isCompact ? SIZES.compact : SIZES.expanded
-  const bounds = win.getBounds()
+// Toggle between compact orb and expanded chat panel
+ipcMain.on('toggle-compact', (_, isCompact) => {
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize
-  // Keep right edge anchored when toggling
-  const newX = Math.min(bounds.x + (bounds.width - size.width), sw - size.width - 20)
-  const newY = Math.max(0, Math.min(bounds.y, sh - size.height))
-  win.setBounds({ x: newX, y: newY, ...size }, true)
+
+  if (isCompact) {
+    win.setBounds({
+      x: sw - COMPACT.width  - MARGIN,
+      y: sh - COMPACT.height - MARGIN,
+      ...COMPACT,
+    }, true)
+  } else {
+    win.setBounds({
+      x: sw - EXPANDED.width  - MARGIN,
+      y: sh - EXPANDED.height - MARGIN,
+      ...EXPANDED,
+    }, true)
+  }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  app.dock?.hide()
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

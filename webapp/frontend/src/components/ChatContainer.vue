@@ -4,6 +4,9 @@ import MarkdownIt from 'markdown-it'
 
 const messages = inject('messages')
 const isTyping = inject('isTyping')
+const streamingContent = inject('streamingContent')
+const isStreaming = inject('isStreaming')
+const streamingModel = inject('streamingModel')
 const md = new MarkdownIt({ html: false, linkify: false })
 const container = ref(null)
 
@@ -36,6 +39,7 @@ const scrollToBottom = async () => {
 
 watch(() => messages.value.length, scrollToBottom)
 watch(() => isTyping.value, scrollToBottom)
+watch(() => streamingContent.value, scrollToBottom)
 </script>
 
 <template>
@@ -53,6 +57,15 @@ watch(() => isTyping.value, scrollToBottom)
         :class="['message', msg.role]"
         v-html="renderMarkdown(msg.content)"
       ></div>
+
+      <!-- Model label + token count under assistant messages -->
+      <div
+        v-if="msg.role === 'assistant' && !msg.tool_calls && msg.content?.trim() && (msg._model || msg._tokens)"
+        class="model-label"
+      >
+        <span v-if="msg._model">{{ msg._model.split('/').pop() }}</span>
+        <span v-if="msg._tokens" class="msg-tokens">· {{ msg._tokens.total.toLocaleString() }} tokens (↑{{ msg._tokens.prompt }} ↓{{ msg._tokens.completion }})</span>
+      </div>
 
       <!-- 2. Assistant Tool Calls -->
       <template v-if="msg.role === 'assistant' && msg.tool_calls">
@@ -80,12 +93,21 @@ watch(() => isTyping.value, scrollToBottom)
 
     </template>
 
-    <!-- Typing indicator -->
-    <div v-if="isTyping" class="message assistant" style="display: flex; align-items: center; gap: 8px; opacity: 0.7;">
-      <div class="dot-typing">
-        <span></span><span></span><span></span>
+    <!-- Streaming content (live text as it arrives) -->
+    <template v-if="isStreaming && streamingContent">
+      <div class="message assistant streaming" v-html="renderMarkdown(streamingContent)"></div>
+      <div v-if="streamingModel" class="model-label">{{ streamingModel.split('/').pop() }}</div>
+    </template>
+
+    <!-- Typing indicator: shown when waiting but no text yet -->
+    <template v-else-if="isTyping">
+      <div class="message assistant" style="display: flex; align-items: center; gap: 8px; opacity: 0.7;">
+        <div class="dot-typing">
+          <span></span><span></span><span></span>
+        </div>
       </div>
-    </div>
+      <div v-if="streamingModel" class="model-label">{{ streamingModel.split('/').pop() }}</div>
+    </template>
   </div>
 </template>
 
@@ -121,6 +143,14 @@ watch(() => isTyping.value, scrollToBottom)
 
 .tool-label { flex: 1; }
 
+.msg-tokens {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-left: 4px;
+  font-family: 'Fira Code', monospace;
+}
+
 .tool-chevron {
   transition: transform 0.2s ease;
   font-size: 1rem;
@@ -146,6 +176,31 @@ watch(() => isTyping.value, scrollToBottom)
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+}
+
+/* Streaming cursor */
+.message.streaming::after {
+  content: '▋';
+  display: inline-block;
+  animation: blink 0.7s step-end infinite;
+  color: var(--accent-color);
+  margin-left: 1px;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Model label */
+.model-label {
+  align-self: flex-start;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.45;
+  margin-top: -0.35rem;
+  padding-left: 4px;
+  font-family: 'Fira Code', monospace;
+  letter-spacing: 0.02em;
 }
 
 /* Typing dots */
