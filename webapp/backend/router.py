@@ -79,11 +79,13 @@ class ModelRouter:
             "max_tokens": 10,
             "temperature": 0.0,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         # enable_thinking=False only works on Qwen3 thinking models; other models return 400
         if "qwen3" in router_model.lower():
             payload["enable_thinking"] = False
         collected = ""
+        _stream_usage = {}
         try:
             async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
                 async with client.stream(
@@ -106,6 +108,8 @@ class ModelRouter:
                             chunk = json.loads(raw)
                         except Exception:
                             continue
+                        if chunk.get("usage"):
+                            _stream_usage = chunk["usage"]
                         if not chunk.get("choices"):
                             continue
                         delta = chunk["choices"][0].get("delta", {})
@@ -113,11 +117,15 @@ class ModelRouter:
                         text = delta.get("content") or ""
                         if text:
                             collected += text
-                            # Stop as soon as we have a recognisable word
-                            if any(w in collected.lower() for w in ("easy", "medium", "hard")):
-                                break
-            if getattr(self, "token_tracker", None):
-                self.token_tracker.record("router", router_model, 0, 0)
+            
+            if getattr(self, "token_tracker", None) and _stream_usage:
+                pt = _stream_usage.get("prompt_tokens", 0)
+                ct = _stream_usage.get("completion_tokens", 0)
+                self.token_tracker.record("router", router_model, pt, ct)
+            elif getattr(self, "token_tracker", None):
+                # Fallback heuristic if usage wasn't received
+                self.token_tracker.record("router", router_model, len(question)//2 + 50, len(collected)//2 + 1)
+                
             tier = self._parse_tier(collected)
             print(f"[Router] {question!r} → raw={collected!r} → {tier}", flush=True)
             return tier

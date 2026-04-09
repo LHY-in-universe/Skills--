@@ -1,139 +1,89 @@
-# Skills探索 — 本地 AI Agent 系统
+# Skills探索 — 工业级 AI Agent 协同系统
 
-本地运行的智能 Agent 系统。AI 可调用本地技能（天气、文件操作、终端命令、Python 编写等），所有高危操作需经前端人工审批后才能执行。
+本系统是一个基于 Python 的高性能 AI 编排器，通过飞书 (Lark) WebSocket 桥接和 Web 端双重入口，实现了“文档即技能”的动态扩展能力。
 
-## 架构
+## 🌟 核心特性
+
+- **🚀 飞书深度集成**：支持通过 WebSocket 长连接接入飞书，无需公网 IP 即可实现消息实时收发。具备 CardKit 2.0 流式打字机输出和工具执行实时状态显示。
+- **📜 动态技能生态 (Markdown Driven)**：深度兼容 OpenClaw 规范。只需在目录下放入 `SKILL.md`，即可将文档直接转化为可执行的 AI 技能。
+- **🛡️ 工业级并发安全**：采用“无状态”对话上下文隔离技术，支持 Web 端与飞书端多人同时并发操作，各会话轨迹互不干扰。
+- **🧪 系统诊断 (Skill Doctor)**：启动时自动扫描环境依赖（ffmpeg, gh, python 等），确保所有技能处于 Ready 状态。
+- **🔒 全方位安全加固**：
+    - **Injection Defense**：使用 `shlex.quote` 转义技术防御针对 Shell 技能的恶意指令注入。
+    - **Human-in-the-Loop**：高危操作（如 Shell 执行、文件改写）需用户在 Web 端手动审批。
+
+## 🏗️ 项目架构
 
 ```
 Skills探索/
 ├── webapp/
-│   ├── backend/            # FastAPI 编排器（工具分发、权限管理）
-│   │   ├── main.py         # API 服务器
-│   │   └── orchestrator.py # AI 对话 + 工具执行核心
-│   └── frontend/           # Vue 3 + Vite 前端
-│       └── src/
-│           ├── App.vue             # 主状态管理、权限弹窗
-│           ├── components/
-│           │   ├── Sidebar.vue     # 模型选择、技能开关、工作目录设置
-│           │   ├── ChatContainer.vue
-│           │   └── MessageInput.vue
-│           └── index.css
-├── skills/                 # 本地技能插件（每个独立的 Python 脚本）
-│   ├── terminal/           # 沙箱终端执行
-│   ├── file_editor/        # 文件读写
-│   ├── python_writer/      # Python 代码生成写入
-│   ├── weather/
-│   ├── clock/
-│   ├── system_monitor/
-│   └── monte_carlo/
-├── siliconflow/
-│   ├── skill_registry.json # 技能注册表（AI 工具接口定义）
-│   ├── memory.json         # 长期记忆
-│   └── .env                # API 密钥配置（不要提交到 Git）
-└── webapp/desktop/         # Electron 桌面小精灵（alwaysOnTop 浮窗）
+│   ├── backend/            # FastAPI 核心编排器
+│   │   ├── main.py         # API 服务入口
+│   │   ├── orchestrator.py # 并发消息引擎（双向通信总线）
+│   │   ├── skill_loader.py # Markdown 及 Native 技能扫描器、健康诊断引擎
+│   │   └── lark_bridge.py  # 飞书 WebSocket 桥接与 UI 渲染器
+│   └── frontend/           # Vue 3 展示端（权限审批中心、管理后台）
+├── skills/                 # 动态技能库
+│   ├── github/             # [MD] GitHub 仓库管理 (SKILL.md)
+│   ├── summarize/          # [MD] 万能网页总结 (SKILL.md)
+│   ├── video-frames/       # [MD] 视频帧提取 (SKILL.md)
+│   └── ...                 # 内置 Native 技能 (FileEditor, Terminal, etc.)
+└── siliconflow/            # 配置与状态中心
+    ├── .env                # 包含 LARK_APP_ID 等核心密钥
+    └── memory.json         # RAG 长期记忆存储
 ```
 
-## 快速启动
+## 🚀 快速开始
 
-**后端：**
+### 1. 安装依赖
 ```bash
 cd webapp/backend
+python3 -m venv venv
 source venv/bin/activate
-python3 main.py
-# 运行在 http://localhost:8000
-```x x
+pip install -r requirements.txt
+```
 
-**前端：**
+### 2. 配置环境变量
+在 `siliconflow/.env` 中补充以下信息：
 ```bash
-cd webapp/frontend
-npm run dev
-# 浏览器访问 http://localhost:5173
-```
-
-**桌面小精灵（可选）：**
-```bash
-cd webapp/desktop
-npm install  # 首次需要，下载 Electron
-npm run start:dev
-# 悬浮窗口出现在屏幕右侧，可拖拽到任意位置
-```
-
-## 配置
-
-编辑 `siliconflow/.env`：
-```
-SILICONFLOW_API_KEY=your_api_key_here
+# 核心 API 配置
+SILICONFLOW_API_KEY=your_api_key
 SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+
+# 飞书集成配置 (可选)
+LARK_APP_ID=cli_xxxxxxxxxxxx
+LARK_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-**重要：** 将 `.env` 加入 `.gitignore`，不要将 API 密钥提交到 Git。
+### 3. 启动系统
+```bash
+# 后端启动（自动开启飞书桥接与健康诊断）
+python main.py
 
-## 已集成技能
+# 前端启动（审批操作中心）
+cd ../frontend && npm run dev
+```
 
-| 技能 | 工具名 | 权限要求 |
-|------|--------|---------|
-| 天气查询 | `get_weather` | 无 |
-| 当前时间 | `get_current_time` | 无 |
-| 系统监控 | `get_system_info` | 无 |
-| 文件操作 | `file_editor` | 读取无需，写入需审批 |
-| 终端命令 | `run_terminal` | 每次需审批（删除操作禁用自动授权） |
-| Python 写入 | `write_python` | 需审批 |
-| 长期记忆 | `memory_save` / `memory_forget` | 无 |
-| 蒙特卡洛积分 | `monte_carlo_integration` | 无 |
+## 🛠️ 技能系统说明
 
-## 添加新技能
+### Markdown 技能 (OpenClaw Mode)
+只需在 `skills/` 目录下创建一个文件夹并包含 `SKILL.md`：
+- 系统会自动解析文档中的 YAML 元数据。
+- AI 调用的参数会自动映射到文档中的 Bash 命令模板中。
+- 所有动态参数均经过 `shlex` 安全转义。
 
-1. 在 `skills/<技能名>/scripts/` 下创建 Python 脚本
-2. 在 `siliconflow/skill_registry.json` 中注册（工具名、描述、参数定义）
-3. 重启后端，侧边栏自动出现该技能的开关
+### Native 技能 (Python Mode)
+通过 `skill_manifest.json` 定义参数规范，由 `subprocess` 安全调用本地 Python 脚本。
 
-## 终端工作目录
+## 🛡️ 安全机制说明
 
-侧边栏"终端工作目录"区块可设置 `run_terminal` 的执行目录。该设置优先级高于 AI 自身的判断，AI 无法覆盖此路径。不设置时使用默认沙箱 `test/`。
-
----
-
-## 安全机制
-
-### 人类在环（Human-in-the-Loop）
-
-所有写操作在执行前都会在前端弹出审批弹窗，用户可选择：
-- **同意执行**：本次授权
-- **一直同意**：缓存本类操作的授权（`rm` 类删除命令除外，每次必须手动审批）
-- **拒绝**：取消本次执行
-
-### 终端沙箱（run_terminal）
-
-- **命令白名单**：只允许 `ls/cat/head/tail/grep/find/mkdir/touch/cp/mv/rm/sort/python3` 等
-- **python3 限制**：禁止 `-c`、`-m` 等任意代码执行参数，只允许运行 `.py` 文件
-- **危险字符拦截**：`$(` `` ` `` `&&` `||` `;` `>` `>>` `<` `|` `../` 全部拦截
-- **路径限制**：绝对路径必须在工作目录内（使用 `Path.relative_to()` 严格校验，防止符号链接绕过）
-- **删除强制审批**：`rm`/`rmdir` 使用正则匹配，即使开启"一直同意"也每次弹窗
-
-### 文件操作沙箱（file_editor / write_python）
-
-- 所有路径使用 `Path.relative_to()` 校验，防止 `../` 路径穿越和符号链接绕过
-- `write_python` 对写入代码做语法检查、禁用危险 API（`eval`/`exec`/`os.system`/`subprocess` 等）、强制结构规范
-
-### 前端安全
-
-- Markdown 渲染禁用原始 HTML（`html: false`），防止 AI 返回内容中嵌入 XSS 脚本
-- CORS 限制为 `localhost:5173/5174`，禁止其他来源跨域调用
-
-### 已知限制（本地开发工具）
-
-- API 端点无认证，仅适合本机使用，不要将后端暴露到公网
-- 终端工具的 AppleScript 可视镜像功能使用字符串转义，建议不要在命令输出中包含特殊字符组合
+- **并发轨道**：每个飞书 `chat_id` 自动映射一个独特的内部会话 ID，防止多用户对话串线。
+- **注入防御**：所有的 Bash 命令拼接均通过 `shlex.quote` 过滤特殊字符。
+- **权限拦截**：AI 尝试执行包含高危指令 (如 `rm`) 的 Shell 脚本时，会先在 Web 端/飞书端触发挂起，等待人工确认。
 
 ---
 
-## 桌面小精灵（Electron）
+## 开发与贡献
 
-Electron 将现有 Vue 前端包装为悬浮桌面窗口：
-
-- **始终置顶**：悬浮于所有应用窗口之上
-- **可拖拽**：顶部拖拽条，可移动到屏幕任意位置
-- **折叠模式**：点击"—"缩为 60×60 浮球，点击浮球展开
-- **复用后端**：与浏览器版共用同一个 FastAPI 后端
-
-启动需同时运行后端 + 前端 dev server + `npm run start:dev`。
+1. 运行 `verify_skills.py` 检查当前系统的技能就绪情况。
+2. 每一个新增的技能都建议配有相应的文档说明和依赖安装脚本。

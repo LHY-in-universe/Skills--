@@ -3,6 +3,7 @@ import { ref, onMounted, provide, watch, nextTick } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import ChatContainer from './components/ChatContainer.vue'
 import MessageInput from './components/MessageInput.vue'
+import VoiceAssistant from './components/VoiceAssistant.vue'
 
 const messages = ref([])
 const isTyping = ref(false)
@@ -366,6 +367,8 @@ onMounted(fetchInitialData)
     <ChatContainer />
     <MessageInput @send="sendMessage" @abort="abortChat" />
   </main>
+  
+  <VoiceAssistant />
 
   <!-- Permission Dialog -->
   <Transition name="dialog-fade">

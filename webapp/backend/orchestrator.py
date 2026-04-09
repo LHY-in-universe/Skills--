@@ -33,9 +33,9 @@ class ChatOrchestrator:
     def __init__(self, project_root: Path):
         self.project_root = project_root
         self.skills_root = project_root / "skills"
-        self.registry_path = project_root / "siliconflow" / "skill_registry.json"
-        self.memory_path = project_root / "siliconflow" / "memory.json"
-        self.env_path = project_root / "siliconflow" / ".env"
+        self.registry_path = project_root / "siliconflow" / "data" / "skill_registry.json"
+        self.memory_path = project_root / "siliconflow" / "data" / "memory.json"
+        self.env_path = project_root / "siliconflow" / "config" / ".env"
         self.models_path = project_root / "webapp" / "backend" / "models.json"
         
         self.env = self._load_env()
@@ -53,14 +53,14 @@ class ChatOrchestrator:
         self.user_cwd: Optional[str] = None
 
         # Multi-conversation support
-        self.conversations_path = project_root / "siliconflow" / "conversations.json"
+        self.conversations_path = project_root / "siliconflow" / "data" / "conversations.json"
         self._conversations: Dict[str, Any] = {}
         self.active_conversation_id: str = ""
         self._load_conversations()
 
         _base = self.api_url.rsplit("/chat/completions", 1)[0]
         self.memory_manager = MemoryManager(
-            memory_dir=self.project_root / "siliconflow" / "memory",
+            memory_dir=self.project_root / "siliconflow" / "index" / "memory",
             api_key=self.api_key,
             api_base_url=_base,
         )
@@ -68,16 +68,16 @@ class ChatOrchestrator:
         self.context_manager = ContextManager(
             api_key=self.api_key,
             api_base_url=_base,
-            embeddings_path=self.project_root / "siliconflow" / "conversation_embeddings.json",
+            embeddings_path=self.project_root / "siliconflow" / "index" / "conversation_embeddings.json",
             chat_model=self.current_model,
             memory_manager=self.memory_manager,
         )
         self.router = ModelRouter(
             api_key=self.api_key,
             api_base_url=_base,
-            config_path=self.project_root / "siliconflow" / "routing_config.json",
+            config_path=self.project_root / "siliconflow" / "config" / "routing_config.json",
         )
-        self.token_tracker = TokenTracker(project_root / "siliconflow" / "token_usage.json")
+        self.token_tracker = TokenTracker(project_root / "siliconflow" / "data" / "token_usage.json")
         self.router.token_tracker = self.token_tracker
         self.context_manager.token_tracker = self.token_tracker
         self.memory_manager.token_tracker = self.token_tracker
@@ -284,14 +284,8 @@ class ChatOrchestrator:
         return f"{self.base_system_prompt}\n\n[长期记忆]\n{lines}"
 
     def _initialize_tools(self) -> List[Dict[str, Any]]:
-        # Hardcoded core tools from chat.py
+        # Built-in core memory tools (implemented directly in orchestrator.py)
         tools = [
-            {"type": "function", "function": {"name": "get_weather", "description": "获取实时天气信息", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}},
-            {"type": "function", "function": {"name": "get_system_info", "description": "获取系统运行指标", "parameters": {"type": "object", "properties": {}}}},
-            {"type": "function", "function": {"name": "get_current_time", "description": "获取当前北京时间", "parameters": {"type": "object", "properties": {}}}},
-            {"type": "function", "function": {"name": "file_editor", "description": "文件编辑工具", "parameters": {"type": "object", "properties": {"op": {"type": "string", "enum": ["list", "read", "write", "append", "replace"]}, "folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}}, "required": ["op", "folder"]}}},
-            {"type": "function", "function": {"name": "run_terminal", "description": "在当前工作目录执行终端命令", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "要执行的命令"}}, "required": ["command"]}}},
-            {"type": "function", "function": {"name": "write_python", "description": "安全写入 Python 文件", "parameters": {"type": "object", "properties": {"folder": {"type": "string"}, "file": {"type": "string"}, "content": {"type": "string"}}, "required": ["folder", "file", "content"]}}},
             {"type": "function", "function": {"name": "memory_save", "description": "保存结构化长期记忆（键值对，如用户名/偏好等）", "parameters": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}},
             {"type": "function", "function": {"name": "memory_forget", "description": "删除结构化长期记忆", "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
             {"type": "function", "function": {"name": "write_memory", "description": "将重要信息永久写入长期记忆文件（Markdown），供未来对话语义检索。适合记录事件、决策、用户需求、项目背景等自由文本。", "parameters": {"type": "object", "properties": {"content": {"type": "string", "description": "要记录的内容，尽量完整具体"}, "tag": {"type": "string", "description": "标签，如「用户偏好」「项目信息」「重要决策」等（可选）"}}, "required": ["content"]}}}
@@ -580,6 +574,7 @@ class ChatOrchestrator:
                 "model": self.current_model,
                 "messages": api_msgs,
                 "stream": True,
+                "stream_options": {"include_usage": True},
             }
             if enabled_tools:
                 payload["tools"] = enabled_tools
@@ -662,6 +657,12 @@ class ChatOrchestrator:
                     return
 
             # Record and emit token usage if captured
+            if not _stream_usage and (full_content or tool_calls_acc):
+                _stream_usage = {
+                    "prompt_tokens": len(str(api_msgs)) // 3,  # Rough character-to-token heuristic
+                    "completion_tokens": len(full_content) // 2 + len(str(tool_calls_acc)) // 3 if tool_calls_acc else len(full_content) // 2
+                }
+
             if _stream_usage:
                 pt = _stream_usage.get("prompt_tokens", 0)
                 ct = _stream_usage.get("completion_tokens", 0)

@@ -35,9 +35,14 @@ webapp/backend/venv/
 .venv/
 ENV/
 
-# --- Node.js / Frontend ---
+# --- Node.js / Frontend / Desktop ---
 node_modules/
 webapp/frontend/node_modules/
+webapp/desktop/node_modules/
+
+# --- Heavy AI Models ---
+webapp/backend/models/
+
 dist/
 dist-ssr/
 *.local

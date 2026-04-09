@@ -11,7 +11,7 @@ Skill Manager — 安全扫描器
 
 PROJECT_ROOT  = Path(__file__).parent.parent.parent.parent
 SKILLS_ROOT   = PROJECT_ROOT / "skills"
-REGISTRY_PATH = PROJECT_ROOT / "siliconflow" / "skill_registry.json"
+REGISTRY_PATH = PROJECT_ROOT / "siliconflow" / "data" / "skill_registry.json"
 
 # 与 python_writer 保持一致的危险调用黑名单
 DANGEROUS_CALLS = {

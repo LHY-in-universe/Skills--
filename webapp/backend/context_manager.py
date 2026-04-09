@@ -133,8 +133,8 @@ class ContextManager:
     # ── Summary rules ─────────────────────────────────────────────
 
     def _load_summary_rules(self) -> str:
-        """Load summary rules from siliconflow/summary_rules.json and format for prompt injection."""
-        rules_path = self.embeddings_path.parent / "summary_rules.json"
+        """Load summary rules from siliconflow/config/summary_rules.json and format for prompt injection."""
+        rules_path = self.embeddings_path.parent.parent / "config" / "summary_rules.json"
         try:
             data = json.loads(rules_path.read_text(encoding="utf-8"))
             rules = data.get("rules", [])
