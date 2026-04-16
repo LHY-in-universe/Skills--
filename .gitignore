@@ -70,5 +70,17 @@ Thumbs.db
 *.swp
 *.swo
 
+# --- Rust ---
+rust-backend/target/
+
+# --- Runtime Data ---
+siliconflow/data/runtime.db
+siliconflow/data/doctor_backups/
+
+# --- Logs ---
+*.log
+frontend.log
+webapp/backend/backend.log
+
 # --- Project Specific ---
 test/ # This was mentioned as a sandbox directory
