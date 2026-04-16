@@ -1,0 +1,26 @@
+[package]
+name = "skills-rust-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws", "macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror = "1"
+anyhow = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio-stream = "0.1"
+futures-util = "0.3"
+shlex = "1"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+base64 = "0.22"
+http = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
