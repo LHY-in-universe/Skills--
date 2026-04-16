@@ -1,12 +1,8 @@
 //! 语音桥服务。
 //!
-//! 原先 `handlers/voice.rs` 通过 self-HTTP POST 到 `127.0.0.1:18000/api/chat`
-//! 驱动对话，再从 SSE 返回流里切句喂 TTS。本模块把这一层回环拆掉：
-//!
-//! - ASR 文本直接调 `ChatExecutor::stream_once` 拿内部事件流
-//! - 事件按需转发给 WebSocket 客户端
-//! - `type=text` 累积到 TTS 缓冲，按句切块交给 Rust Edge TTS 流式合成
-//! - abort 改成直接调 `ChatService::abort`
+//! 把 ASR 文本驱动 `ChatExecutor`、按句切分 → Rust Edge TTS 流式合成
+//! 的全部链路封装在一起。原本通过 `voice_worker.py` 子进程的 stdin/stdout
+//! 串联 TTS 已经全部下沉到 Rust，本模块直接把音频写回 WebSocket。
 
 use crate::app::services::chat::executor::ChatExecutor;
 use crate::app::services::chat_service::ChatService;
@@ -17,39 +13,15 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
-use tokio::process::ChildStdin;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 
-pub type WorkerStdin = Arc<AsyncMutex<ChildStdin>>;
+/// WebSocket sink 的共享句柄。两端都需要写：
+/// - 主循环（chat 事件、voice_session_state）
+/// - TTS 后台任务（audio_stream）
 pub type ClientSink = Arc<AsyncMutex<SplitSink<WebSocket, Message>>>;
 
-/// 构造 `voice_session_state` 事件 payload。
-pub fn voice_session_state_payload(
-    conv_id: Option<&str>,
-    phase: &str,
-    source: &str,
-) -> Value {
-    serde_json::json!({
-        "type": "voice_session_state",
-        "conv_id": conv_id,
-        "phase": phase,
-        "source": source,
-    })
-}
-
-/// 把一个 JSON 消息以 `<line>\n` 形式写入 voice_worker 的 stdin。
-pub async fn write_worker_line(
-    worker_stdin: &WorkerStdin,
-    value: &Value,
-) -> anyhow::Result<()> {
-    let mut stdin = worker_stdin.lock().await;
-    stdin.write_all(value.to_string().as_bytes()).await?;
-    stdin.write_all(b"\n").await?;
-    stdin.flush().await?;
-    Ok(())
-}
+const DEFAULT_TTS_VOICE: &str = "zh-CN-XiaoxiaoNeural";
 
 #[derive(Clone)]
 pub struct VoiceBridge {
@@ -65,10 +37,8 @@ impl VoiceBridge {
         }
     }
 
-    /// 按 ASR 文本触发一次内部聊天，同步把事件流和 TTS 合成交给 handler 层处理。
-    ///
-    /// TTS 切句后直接通过 Rust Edge TTS 合成 MP3 并经 `client_tx` 推送到前端，
-    /// 不再绕行 voice_worker 的 stdin/stdout。
+    /// 按 ASR 文本触发一次内部聊天。
+    /// `on_event` 收到执行器吐出的 JSON；TTS 切句直接走 Rust Edge TTS 写回 WS。
     pub async fn run_chat<F>(
         &self,
         text: String,
@@ -88,6 +58,8 @@ impl VoiceBridge {
             .await;
 
         let (event_tx, mut event_rx) = mpsc::channel::<Value>(64);
+        let (tts_tx, tts_rx) = mpsc::channel::<String>(16);
+        let tts_task = spawn_tts_consumer(tts_rx, client_tx.clone());
 
         let _ = event_tx
             .send(serde_json::json!({
@@ -140,37 +112,6 @@ impl VoiceBridge {
         });
         drop(event_tx);
 
-        // TTS 排队 channel：保证句子按序合成
-        let (tts_tx, mut tts_rx) = mpsc::channel::<String>(16);
-        let tts_client_tx = client_tx.clone();
-        let tts_task = tokio::spawn(async move {
-            while let Some(chunk_text) = tts_rx.recv().await {
-                let tx = tts_client_tx.clone();
-                if let Err(e) = edge_tts::stream_audio(
-                    &chunk_text,
-                    "zh-CN-XiaoxiaoNeural",
-                    |audio_bytes| {
-                        let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_bytes);
-                        let payload = serde_json::json!({
-                            "type": "audio_stream",
-                            "data": b64,
-                        });
-                        let tx_inner = tx.clone();
-                        tokio::spawn(async move {
-                            let mut sink = tx_inner.lock().await;
-                            let _ = sink
-                                .send(Message::Text(payload.to_string().into()))
-                                .await;
-                        });
-                    },
-                )
-                .await
-                {
-                    tracing::warn!("Edge TTS error: {e}");
-                }
-            }
-        });
-
         let mut tts_buffer = String::new();
         while let Some(parsed) = event_rx.recv().await {
             let event_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -191,8 +132,8 @@ impl VoiceBridge {
         }
         flush_tts_sentences(&mut tts_buffer, &tts_tx, true).await;
         drop(tts_tx);
-        let _ = tts_task.await;
         let _ = exec_handle.await;
+        let _ = tts_task.await;
         Ok(())
     }
 
@@ -200,6 +141,43 @@ impl VoiceBridge {
     pub fn abort(&self, conv_id: Option<&str>) {
         self.chat_service.abort(conv_id);
     }
+}
+
+/// 后台任务：串行消费 TTS 文本片段，逐段调用 Edge TTS，写回 WebSocket。
+fn spawn_tts_consumer(
+    mut tts_rx: mpsc::Receiver<String>,
+    client_tx: ClientSink,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        while let Some(chunk_text) = tts_rx.recv().await {
+            let sink = client_tx.clone();
+            let result = edge_tts::stream_audio(
+                &chunk_text,
+                DEFAULT_TTS_VOICE,
+                |audio_bytes| {
+                    if audio_bytes.is_empty() {
+                        return;
+                    }
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_bytes);
+                    let payload = serde_json::json!({
+                        "type": "audio_stream",
+                        "data": b64,
+                    });
+                    let sink_inner = sink.clone();
+                    tokio::spawn(async move {
+                        let mut guard = sink_inner.lock().await;
+                        let _ = guard
+                            .send(Message::Text(payload.to_string().into()))
+                            .await;
+                    });
+                },
+            )
+            .await;
+            if let Err(err) = result {
+                tracing::warn!(error = %err, "Edge TTS 合成失败");
+            }
+        }
+    })
 }
 
 async fn flush_tts_sentences(
@@ -236,4 +214,14 @@ async fn flush_tts_sentences(
     if !chunk.is_empty() {
         let _ = tts_tx.send(chunk).await;
     }
+}
+
+/// 公开给 handler 用：构造 `voice_session_state` 事件 JSON。
+pub fn voice_session_state_payload(conv_id: Option<&str>, phase: &str, source: &str) -> Value {
+    serde_json::json!({
+        "type": "voice_session_state",
+        "conv_id": conv_id,
+        "phase": phase,
+        "source": source,
+    })
 }

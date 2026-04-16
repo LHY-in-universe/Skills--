@@ -66,12 +66,12 @@
   - 复杂请求会先发 `plan`
   - 执行中发 `step_start / step_done`
   - 自然回答完成后发 `audit`
-- 已支持第一版 Rust 语音桥入口：
-  - `WS /api/voice/bridge`
-  - Rust 直接接管 WebSocket 入口
-  - 底层 ASR / VAD / TTS 仍通过 `webapp/backend/voice_worker.py` 调用 Python 运行时
-  - 语音桥支持显式携带 `conv_id`
-  - TTS 改为句子级 flush，再由 worker 按音频块回传 `audio_stream`
+- 已支持完整 Rust 语音链：
+  - `WS /api/voice/bridge` — Rust 进程内 KWS / VAD / ASR / TTS 全闭环
+  - 推理层：`src/app/services/voice_pipeline.rs` 通过 `sherpa-rs` + `download-binaries` 直接持有 zipformer KWS / Silero VAD / Paraformer ASR
+  - 合成层：`src/app/services/edge_tts.rs` Rust 原生 Edge TTS WSS 协议
+  - 不再 fork `webapp/backend/voice_worker.py` 子进程，stdin/stdout JSON 协议彻底下线
+  - 语音桥支持显式携带 `conv_id`，TTS 句切 → mpsc channel → 后台任务串行合成 → `audio_stream` 帧
 - 已建立第一版模块分层：
   - `api`
   - `app`
@@ -205,8 +205,8 @@ rust-backend/
 
 1. ✅ 把语音桥控制层从 handlers 拆到独立 voice service（P1 第二批 #5）— `handlers/voice.rs` 只负责 WS upgrade / 消息编解码；相位信令 payload 构造与 worker stdin 写入统一收敛到 `src/app/services/voice_bridge.rs::voice_session_state_payload` / `write_worker_line`，handler 的 `send_voice_session_state` / `write_worker_json` 退化为薄封装
 2. ✅ 把 `voice bridge -> chat -> tts` 变成明确的内部状态机（`VoiceBridge::run_chat` 接管事件流 + TTS 切句，handler 不再自打 HTTP）
-3. ✅ 继续缩小 `webapp/backend/voice_worker.py` 的职责（P2a TTS 迁 Rust）— 新增 `src/app/services/edge_tts.rs`（~300 LOC），忠实移植 Python `edge_tts` 包的 WSS 协议（DRM token / SSML 构造 / 二进制帧解析 / 403 clock skew 重试）；`voice_bridge.rs` 的 `flush_tts_sentences` 不再写 `tts_stream` 到 worker stdin，改为通过 TTS channel 排队合成并直接经 WS 发送 `audio_stream` 给前端；`voice_worker.py` 删除 `tts_stream` 分支，`voice_engine.py` 删除 `generate_speech` / `get_streaming_tts` / `import edge_tts`；worker 退化为纯 ASR 进程
-4. 优先迁移语音控制逻辑，再评估是否迁移推理层（ASR/KWS/VAD 依赖 sherpa-onnx C FFI + ONNX Runtime ~200MB，留待 P2b 评估）
+3. ✅ 继续缩小 `webapp/backend/voice_worker.py` 的职责（P2a TTS 迁 Rust）— 新增 `src/app/services/edge_tts.rs`（~465 LOC），忠实移植 Python `edge_tts` 包的 WSS 协议（DRM token / SSML 构造 / 二进制帧解析 / 403 clock skew 重试）；`voice_bridge.rs` 的 `flush_tts_sentences` 不再写 `tts_stream` 到 worker stdin，改为通过 TTS channel 排队合成并直接经 WS 发送 `audio_stream` 给前端
+4. ✅ 推理层迁移完成（P2b ASR/KWS/VAD 全部下沉到 Rust）— 新增 `src/app/services/voice_pipeline.rs`，通过 `sherpa-rs 0.6.8`（启用 `download-binaries` + `sys` feature）直接持有 KWS（zipformer）/ Silero VAD / Paraformer ASR；KWS 因官方 `extract_keyword` 会调 `InputFinished` 不能流式复用，内部走原生 `sherpa-rs-sys` C FFI（`AcceptWaveform / IsKeywordStreamReady / DecodeKeywordStream / GetKeywordResult / ResetKeywordStream`），命中后立即 reset 流；`handlers/voice.rs` 不再 fork Python 子进程，`audio_chunk` → `VoicePipeline::push_audio_chunk(&[u8])` 直接返回 `Vec<PipelineEvent::{Wakeword, AsrResult}>` 由 handler 翻译成 WS 消息；`webapp/backend/voice_worker.py` 与 `voice_engine.py` 已物理删除，`webapp/backend/main.py` 不再 import `voice_engine`
 
 ### P2：导入与迁移补齐（P1 第二批 #6）
 
@@ -368,3 +368,12 @@ P0 已闭环，下一轮按上面的 **P1 第一批** 推进，主线是：
 - #5 voice handler 瘦身（`voice_session_state_payload` / `write_worker_line` 搬进 `voice_bridge.rs`；`handlers/voice.rs` 仅留 WS 编解码薄壳）
 - #6 Python 旧数据导入（新增 `memories` 表 + `MemoryStore::bootstrap` 首启导入 + `cargo run --bin import_legacy` 校验工具；`docs/data_migration.md`）
 - #7 回归：`cargo build --release` 通过；`cargo clippy` 余下告警均为既有问题（与本轮改动无关）；`GET /health` / `GET /api/runtime-health`（含 `active_runs: []`）/ `GET /api/observability/events` 返回预期结构；`import_legacy` 幂等，`memories=6` 与 `memory.json` kv 数一致
+
+## P2b 语音推理层迁移闭环（2026-04-16）
+
+- KWS / VAD / ASR 全部下沉到 Rust，`sherpa-rs 0.6.8`（`download-binaries` + `sys` feature）；新增 `src/app/services/voice_pipeline.rs` + `Cargo.toml` 依赖
+- KWS 通过原生 `sherpa-rs-sys` FFI 走真正的流式解码（避开官方 wrapper `extract_keyword` 会调 `InputFinished`），命中后 `ResetKeywordStream` 复用同一 stream
+- `handlers/voice.rs` 完全摘掉 `tokio::process::Command` 子进程分支，`audio_chunk` → `VoicePipeline::push_audio_chunk(&[u8]) -> Vec<PipelineEvent>`；`end_utterance` → `flush_pending_asr`
+- `webapp/backend/voice_worker.py` / `voice_engine.py` 物理删除；`webapp/backend/main.py` 去掉 `voice_engine` import，`app.state.voice_engine = None` 仅用于兼容老 Python 路由
+- 新增 `rust-backend/build.rs` 给 macOS / Linux 二进制追加 `@loader_path` / `$ORIGIN` rpath，解决 `sherpa-rs` `download-binaries` 只放 dylib 不配 rpath 导致 release binary 启动时 `Library not loaded: @rpath/libonnxruntime.1.17.1.dylib` 的问题
+- 回归：`cargo build --release` 通过；`cargo test --lib` 7 passed（edge_tts 单测全绿）；`./target/release/skills-rust-backend` 直接运行，`GET /health` 返回 `{"ok":true,"service":"skills-rust-backend","version":"0.1.0"}`

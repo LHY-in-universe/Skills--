@@ -1,20 +1,21 @@
-use crate::app::services::voice_bridge::{
-    voice_session_state_payload, write_worker_line, WorkerStdin,
-};
+use crate::app::services::voice_bridge::{voice_session_state_payload, ClientSink};
+use crate::app::services::voice_pipeline::{PipelineEvent, VoicePipeline};
 use crate::app::state::AppState;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::IntoResponse;
-use base64::Engine;
 use futures_util::{SinkExt, StreamExt as FuturesStreamExt};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
+use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
 /// Rust 版语音桥入口。
 ///
-/// 改造后不再自打 HTTP 到 `127.0.0.1:18000`：ASR 文本通过 `VoiceBridge` 直接驱动
-/// `ChatExecutor` 的内部事件流；abort 通过 `ChatService::abort` 直接触发。
+/// 单 WebSocket 内进程闭环：
+/// - 前端音频帧 → `VoicePipeline`（Rust 内 KWS/VAD/ASR）→ ASR 文本
+/// - ASR 文本 → `VoiceBridge::run_chat` → 模型流式输出
+/// - 切句 → Rust Edge TTS → `audio_stream` 帧写回前端
+///
+/// 不再 fork Python `voice_worker.py`、不再有 stdin/stdout JSON 协议。
 pub async fn voice_bridge(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
@@ -23,24 +24,20 @@ pub async fn voice_bridge(
 }
 
 async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
-    let worker_python = state.config_service.voice_worker_python();
-    let worker_script = state.config_service.voice_worker_script();
+    let models_root = state
+        .config_service
+        .project_root()
+        .join("webapp/backend/models/voice");
 
-    let mut child = match Command::new(&worker_python)
-        .arg(&worker_script)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
-        Ok(c) => c,
+    let pipeline = match VoicePipeline::new(models_root) {
+        Ok(p) => Arc::new(AsyncMutex::new(p)),
         Err(err) => {
             let mut socket = client_socket;
             let _ = socket
                 .send(Message::Text(
                     serde_json::json!({
                         "type": "error",
-                        "content": format!("Rust 无法启动语音 worker: {}", err),
+                        "content": format!("voice pipeline init failed: {err}"),
                     })
                     .to_string()
                     .into(),
@@ -51,97 +48,28 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
         }
     };
 
-    let Some(child_stdin) = child.stdin.take() else {
-        return;
-    };
-    let Some(child_stdout) = child.stdout.take() else {
-        return;
-    };
-
     let (client_tx_raw, mut client_rx) = client_socket.split();
-    let client_tx = std::sync::Arc::new(AsyncMutex::new(client_tx_raw));
-    let worker_stdin = std::sync::Arc::new(AsyncMutex::new(child_stdin));
-    let current_conv_id = std::sync::Arc::new(AsyncMutex::new(None::<String>));
-
-    let worker_reader_tx = client_tx.clone();
-    let worker_reader_conv_id = current_conv_id.clone();
-    let worker_reader_state = state.clone();
-    let worker_stdout_task = tokio::spawn(async move {
-        let reader = BufReader::new(child_stdout);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if line.trim().is_empty() {
-                continue;
-            }
-            let parsed: serde_json::Value = match serde_json::from_str(&line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            {
-                let mut tx = worker_reader_tx.lock().await;
-                if tx
-                    .send(Message::Text(parsed.to_string().into()))
-                    .await
-                    .is_err()
-                {
-                    break;
-                }
-            }
-
-            if parsed.get("type").and_then(|v| v.as_str()) == Some("asr_result") {
-                let text = parsed
-                    .get("content")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
-                if !text.is_empty() {
-                    let tx = worker_reader_tx.clone();
-                    let conv_id = worker_reader_conv_id.lock().await.clone();
-                    let _ = send_voice_session_state(
-                        &tx,
-                        conv_id.clone(),
-                        "processing",
-                        "asr_result",
-                    )
-                    .await;
-                    let bridge_state = worker_reader_state.clone();
-                    tokio::spawn(async move {
-                        if let Err(err) = stream_chat_to_voice_ws(
-                            bridge_state,
-                            text,
-                            conv_id,
-                            tx.clone(),
-                        )
-                        .await
-                        {
-                            let mut sink = tx.lock().await;
-                            let _ = sink
-                                .send(Message::Text(
-                                    serde_json::json!({
-                                        "type": "error",
-                                        "content": format!("voice_chat_bridge_failed: {}", err),
-                                    })
-                                    .to_string()
-                                    .into(),
-                                ))
-                                .await;
-                        }
-                    });
-                }
-            }
-        }
-    });
+    let client_tx: ClientSink = Arc::new(AsyncMutex::new(client_tx_raw));
+    let current_conv_id = Arc::new(AsyncMutex::new(None::<String>));
 
     while let Some(Ok(msg)) = client_rx.next().await {
         match msg {
             Message::Binary(bin) => {
-                let payload = serde_json::json!({
-                    "type": "audio_chunk",
-                    "data_b64": base64::engine::general_purpose::STANDARD.encode(bin),
-                });
-                if write_worker_json(&worker_stdin, &payload).await.is_err() {
+                let pipeline = pipeline.clone();
+                let bytes = bin.to_vec();
+                let events = {
+                    let mut guard = pipeline.lock().await;
+                    guard.push_audio_chunk(&bytes)
+                };
+                if dispatch_pipeline_events(
+                    events,
+                    &state,
+                    &client_tx,
+                    &current_conv_id,
+                )
+                .await
+                .is_err()
+                {
                     break;
                 }
             }
@@ -152,7 +80,15 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                 };
                 let msg_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
                 match msg_type {
-                    "debug_config" | "end_utterance" => {
+                    "debug_config" => {
+                        let bypass = value
+                            .get("bypass_wakeword")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        {
+                            let mut guard = pipeline.lock().await;
+                            guard.set_bypass_wakeword(bypass);
+                        }
                         if let Some(conv_id) = value.get("conv_id").and_then(|v| v.as_str()) {
                             let conv_id = conv_id.trim();
                             let mut current = current_conv_id.lock().await;
@@ -167,10 +103,54 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                             &client_tx,
                             conv_id,
                             "listening",
-                            msg_type,
+                            "debug_config",
                         )
                         .await;
-                        if write_worker_json(&worker_stdin, &value).await.is_err() {
+                        {
+                            let mut sink = client_tx.lock().await;
+                            let _ = sink
+                                .send(Message::Text(
+                                    serde_json::json!({
+                                        "type": "debug_config_ack",
+                                        "bypass_wakeword": bypass,
+                                    })
+                                    .to_string()
+                                    .into(),
+                                ))
+                                .await;
+                        }
+                    }
+                    "end_utterance" => {
+                        if let Some(conv_id) = value.get("conv_id").and_then(|v| v.as_str()) {
+                            let conv_id = conv_id.trim();
+                            let mut current = current_conv_id.lock().await;
+                            *current = if conv_id.is_empty() {
+                                None
+                            } else {
+                                Some(conv_id.to_string())
+                            };
+                        }
+                        let events = {
+                            let mut guard = pipeline.lock().await;
+                            guard.flush_pending_asr(false)
+                        };
+                        let conv_id = current_conv_id.lock().await.clone();
+                        let _ = send_voice_session_state(
+                            &client_tx,
+                            conv_id,
+                            "listening",
+                            "end_utterance",
+                        )
+                        .await;
+                        if dispatch_pipeline_events(
+                            events,
+                            &state,
+                            &client_tx,
+                            &current_conv_id,
+                        )
+                        .await
+                        .is_err()
+                        {
                             break;
                         }
                     }
@@ -263,28 +243,84 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
             Message::Ping(_) | Message::Pong(_) => {}
         }
     }
-
-    let _ = write_worker_json(&worker_stdin, &serde_json::json!({ "type": "shutdown" })).await;
-    let _ = worker_stdout_task.await;
-    let _ = child.kill().await;
 }
 
-async fn write_worker_json(
-    worker_stdin: &WorkerStdin,
-    value: &serde_json::Value,
+async fn dispatch_pipeline_events(
+    events: Vec<PipelineEvent>,
+    state: &AppState,
+    client_tx: &ClientSink,
+    current_conv_id: &Arc<AsyncMutex<Option<String>>>,
 ) -> anyhow::Result<()> {
-    write_worker_line(worker_stdin, value).await
+    for event in events {
+        match event {
+            PipelineEvent::Wakeword(kw) => {
+                let mut sink = client_tx.lock().await;
+                sink.send(Message::Text(
+                    serde_json::json!({
+                        "type": "wakeword",
+                        "keyword": kw,
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await?;
+            }
+            PipelineEvent::AsrResult(text) => {
+                {
+                    let mut sink = client_tx.lock().await;
+                    sink.send(Message::Text(
+                        serde_json::json!({
+                            "type": "asr_result",
+                            "content": text,
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                    .await?;
+                }
+                let conv_id = current_conv_id.lock().await.clone();
+                let _ = send_voice_session_state(
+                    client_tx,
+                    conv_id.clone(),
+                    "processing",
+                    "asr_result",
+                )
+                .await;
+                let bridge_state = state.clone();
+                let tx = client_tx.clone();
+                tokio::spawn(async move {
+                    if let Err(err) = stream_chat_to_voice_ws(
+                        bridge_state,
+                        text,
+                        conv_id,
+                        tx.clone(),
+                    )
+                    .await
+                    {
+                        let mut sink = tx.lock().await;
+                        let _ = sink
+                            .send(Message::Text(
+                                serde_json::json!({
+                                    "type": "error",
+                                    "content": format!("voice_chat_bridge_failed: {}", err),
+                                })
+                                .to_string()
+                                .into(),
+                            ))
+                            .await;
+                    }
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
-/// 把 `ChatExecutor` 的内部事件流翻译成 WebSocket 消息。
-///
-/// TTS 切句由 `VoiceBridge` 内部直接通过 Rust Edge TTS 合成并发送到前端，
-/// 不再经由 voice_worker 的 stdin/stdout。
 async fn stream_chat_to_voice_ws(
     state: AppState,
     text: String,
     conv_id: Option<String>,
-    client_tx: std::sync::Arc<AsyncMutex<futures_util::stream::SplitSink<WebSocket, Message>>>,
+    client_tx: ClientSink,
 ) -> anyhow::Result<()> {
     let _ = send_voice_session_state(&client_tx, conv_id.clone(), "processing", "chat_start").await;
 
@@ -327,7 +363,7 @@ async fn stream_chat_to_voice_ws(
 }
 
 async fn send_voice_session_state(
-    client_tx: &std::sync::Arc<AsyncMutex<futures_util::stream::SplitSink<WebSocket, Message>>>,
+    client_tx: &ClientSink,
     conv_id: Option<String>,
     phase: &str,
     source: &str,

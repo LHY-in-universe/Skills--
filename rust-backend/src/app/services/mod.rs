@@ -3,6 +3,7 @@ pub mod chat_service;
 pub mod config;
 pub mod config_service;
 pub mod edge_tts;
+pub mod voice_pipeline;
 pub mod conversation_service;
 pub mod tool_service;
 pub mod voice_bridge;

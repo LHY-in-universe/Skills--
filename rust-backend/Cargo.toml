@@ -24,3 +24,4 @@ http = "1"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
+sherpa-rs = { version = "0.6.8", features = ["download-binaries", "sys"] }

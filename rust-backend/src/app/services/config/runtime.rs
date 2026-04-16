@@ -1,4 +1,4 @@
-//! Runtime / Lark / terminal / 语音 worker 相关配置。
+//! Runtime / Lark / terminal 相关配置。
 //!
 //! 都是轻量的 JSON 或 `.env` 读写，集中在一起避免 config_service.rs 继续膨胀。
 
@@ -65,15 +65,4 @@ impl ConfigService {
             .unwrap_or_else(|| "ws://127.0.0.1:8000/api/voice/bridge".to_string())
     }
 
-    pub fn voice_worker_script(&self) -> PathBuf {
-        self.project_root().join("webapp/backend/voice_worker.py")
-    }
-
-    pub fn voice_worker_python(&self) -> PathBuf {
-        let venv_python = self.project_root().join("webapp/backend/venv/bin/python");
-        if venv_python.exists() {
-            return venv_python;
-        }
-        PathBuf::from("python3")
-    }
 }
