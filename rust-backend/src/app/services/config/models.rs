@@ -1,6 +1,6 @@
 //! 模型 CRUD + providers_catalog。
 //!
-//! 操作仍以 `webapp/backend/models.json` 为事实源，避免 Rust / Python 在过渡期
+//! 操作仍以 `rust-backend/config/models.json` 为事实源，避免 Rust / Python 在过渡期
 //! 分叉。写完一律 `self.reload()` 让快照同步。
 
 use crate::app::services::config_service::ConfigService;
@@ -15,7 +15,7 @@ impl ConfigService {
         &self,
         model_name: &str,
     ) -> anyhow::Result<crate::domain::models::ConfigView> {
-        let models_path = self.project_root().join("webapp/backend/models.json");
+        let models_path = self.project_root().join("rust-backend/config/models.json");
         let text = fs::read_to_string(&models_path)?;
         let mut raw: Value = serde_json::from_str(&text)?;
         let object = raw
@@ -56,7 +56,7 @@ impl ConfigService {
         &self,
         req: &ModelCreateRequest,
     ) -> anyhow::Result<BTreeMap<String, ModelSpec>> {
-        let models_path = self.project_root().join("webapp/backend/models.json");
+        let models_path = self.project_root().join("rust-backend/config/models.json");
         let text = fs::read_to_string(&models_path)?;
         let mut raw: Value = serde_json::from_str(&text)?;
         let object = raw
@@ -93,7 +93,7 @@ impl ConfigService {
         display_name: &str,
         req: &ModelUpdateRequest,
     ) -> anyhow::Result<BTreeMap<String, ModelSpec>> {
-        let models_path = self.project_root().join("webapp/backend/models.json");
+        let models_path = self.project_root().join("rust-backend/config/models.json");
         let text = fs::read_to_string(&models_path)?;
         let mut raw: Value = serde_json::from_str(&text)?;
         let object = raw
@@ -136,7 +136,7 @@ impl ConfigService {
         &self,
         display_name: &str,
     ) -> anyhow::Result<BTreeMap<String, ModelSpec>> {
-        let models_path = self.project_root().join("webapp/backend/models.json");
+        let models_path = self.project_root().join("rust-backend/config/models.json");
         let text = fs::read_to_string(&models_path)?;
         let mut raw: Value = serde_json::from_str(&text)?;
         let object = raw

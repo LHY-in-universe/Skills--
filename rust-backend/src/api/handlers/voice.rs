@@ -27,7 +27,7 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
     let models_root = state
         .config_service
         .project_root()
-        .join("webapp/backend/models/voice");
+        .join("rust-backend/models/voice");
 
     let pipeline = match VoicePipeline::new(models_root) {
         Ok(p) => Arc::new(AsyncMutex::new(p)),

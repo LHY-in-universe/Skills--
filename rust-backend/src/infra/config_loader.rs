@@ -17,7 +17,7 @@ pub struct ConfigLoader;
 
 impl ConfigLoader {
     pub fn load_snapshot(project_root: PathBuf) -> anyhow::Result<RuntimeSnapshot> {
-        let models_path = project_root.join("webapp/backend/models.json");
+        let models_path = project_root.join("rust-backend/config/models.json");
         let providers_path = project_root.join("siliconflow/config/providers.json");
         let env_path = project_root.join("siliconflow/config/.env");
         let runtime_path = project_root.join("siliconflow/config/runtime_config.json");

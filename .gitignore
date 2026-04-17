@@ -31,7 +31,6 @@ wheels/
 
 # --- Python Virtual Environments ---
 venv/
-webapp/backend/venv/
 .venv/
 ENV/
 
@@ -41,7 +40,7 @@ webapp/frontend/node_modules/
 webapp/desktop/node_modules/
 
 # --- Heavy AI Models ---
-webapp/backend/models/
+rust-backend/models/
 
 dist/
 dist-ssr/
@@ -79,8 +78,6 @@ siliconflow/data/doctor_backups/
 
 # --- Logs ---
 *.log
-frontend.log
-webapp/backend/backend.log
 
 # --- Project Specific ---
 test/ # This was mentioned as a sandbox directory
