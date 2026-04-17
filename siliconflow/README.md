@@ -1,14 +1,25 @@
-# SiliconFlow 模块说明
+# SiliconFlow CLI 模块
 
-`siliconflow/` 是本仓库的命令行编排模块，提供模型调用、技能执行、对话与记忆数据管理。
+`siliconflow/` 是本仓库的命令行编排模块，提供独立于 Web 界面的终端对话能力。
 
-## 目录
+## 目录结构
 
-- [SKILL.md](./SKILL.md)：系统提示词与工具说明。
-- [scripts/chat.py](./scripts/chat.py)：命令行聊天入口。
-- [requirements.txt](./requirements.txt)：该模块基础依赖。
-- `config/.env`：环境变量文件（需自行创建，勿提交）。
-- `data/`：对话、记忆、token 统计等持久化数据。
+```text
+siliconflow/
+├── config/                 # 配置文件
+│   ├── .env                # API Key 等环境变量（需自行创建，勿提交）
+│   ├── providers.json      # Provider 定义
+│   ├── routing_config.json # 路由策略
+│   └── ...                 # 其他配置
+├── data/                   # 运行时数据
+│   ├── conversations.json  # 对话历史
+│   ├── memory.json         # 记忆数据
+│   └── token_usage.json    # Token 统计
+├── scripts/
+│   └── chat.py             # 命令行聊天入口
+├── SKILL.md                # 系统提示词与工具说明
+└── requirements.txt        # Python 依赖
+```
 
 ## 快速开始
 
@@ -24,10 +35,6 @@ pip install openai python-dotenv
 ```bash
 SILICONFLOW_API_KEY=your_key_here
 SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-
-# 可选
-DEEPSEEK_API_KEY=your_deepseek_key
-DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
 ```
 
 3. 启动 CLI 对话
@@ -36,8 +43,8 @@ DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
 python3 siliconflow/scripts/chat.py
 ```
 
-## 常见说明
+## 说明
 
-- `scripts/chat.py` 使用同一套技能目录（`skills/`）和数据目录（`siliconflow/data/`）。
-- 模型列表默认来自 `webapp/backend/models.json`。
-- 如果 API Key 未配置，启动后调用模型会失败。
+- CLI 模块与 Rust 后端共享同一套配置目录（`siliconflow/config/`）和技能目录（`skills/`）
+- 模型列表来自 `rust-backend/config/models.json`
+- 运行时数据存储在 `siliconflow/data/`，Rust 后端额外使用 SQLite（`siliconflow/data/runtime.db`）

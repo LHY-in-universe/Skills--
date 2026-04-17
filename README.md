@@ -1,79 +1,67 @@
-# Skills探索
+# Skills 探索
 
-本仓库包含一个可视化前端（Vue + Vite）、一个后端编排服务（FastAPI），以及独立的 `siliconflow` 命令行编排模块。
+AI 编排平台：Rust 后端 + Vue 前端 + 技能系统 + 语音交互。
 
 ## 项目结构
 
 ```text
 Skills探索/
+├── rust-backend/           # Rust 主后端（axum + tokio）
+│   ├── config/             # 模型配置（models.json）
+│   ├── models/             # 语音 ONNX 模型（gitignore）
+│   └── src/                # Rust 源码
 ├── webapp/
 │   ├── frontend/           # Vue 3 + Vite 前端
-│   ├── backend/            # FastAPI 后端
 │   └── desktop/            # Electron 桌面壳（可选）
-├── skills/                 # 技能目录（SKILL.md / skill_manifest.json）
-└── siliconflow/            # CLI 编排模块与数据目录
+├── skills/                 # 技能目录（SKILL.md / scripts/）
+├── siliconflow/            # CLI 编排模块 + 配置 + 数据
+│   ├── config/             # 环境变量、路由、provider 等配置
+│   └── data/               # 运行时数据（conversations / token_usage 等）
+└── docs/                   # 架构、迁移、API 文档
 ```
 
-## 启动前准备
+## 快速启动
 
-### 1) Python 环境（后端）
+### 1) 环境变量
 
-```bash
-cd webapp/backend
-python3 -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn openai numpy requests httpx pyyaml lark-oapi
-```
-
-说明：
-
-- 当前仓库没有 `webapp/backend/requirements.txt`，所以上面使用的是按代码导入整理出的最小依赖集合。
-- 如果启用语音桥接，还需要额外安装：`sherpa-onnx edge-tts pydub`。
-
-### 2) Node 环境（前
-
-```bash
-cd webapp/frontend
-npm install
-```
-
-### 3) 环境变量
-
-后端会读取 `siliconflow/config/.env`（不是 `siliconflow/.env`）。建议至少配置：
+在 `siliconflow/config/.env` 中配置 API Key：
 
 ```bash
 SILICONFLOW_API_KEY=your_api_key
 SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
 
-# 可选：DeepSeek
+# 可选
 DEEPSEEK_API_KEY=your_deepseek_key
 DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
-
-# 可选：飞书桥接
-LARK_APP_ID=cli_xxxxxxxxxxxx
-LARK_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-## 前后端启动方式
-
-### 启动后端（FastAPI）
+### 2) 启动后端（Rust）
 
 ```bash
-cd webapp/backend
-source venv/bin/activate
-python3 main.py
+cd rust-backend
+cargo run --release
 ```
 
-默认监听：`http://127.0.0.1:8000`
+默认监听：`http://127.0.0.1:18000`
 
-### 启动前端（Vite）
+### 3) 启动前端（Vite）
 
 ```bash
 cd webapp/frontend
+npm install
 npm run dev
 ```
 
-默认地址：`http://127.0.0.1:5173`（或 5174）
+默认地址：`http://127.0.0.1:5173`
+
+## 核心功能
+
+- **多模型聊天**：SiliconFlow / DeepSeek / NVIDIA / Kimi，支持自动 failover
+- **工具调用**：安全工具自动执行，危险工具走权限确认
+- **技能系统**：Markdown 技能 + Native 脚本技能
+- **语音交互**：KWS 唤醒词 + VAD 端点检测 + Paraformer ASR + Edge TTS，全部 Rust 进程内
+- **会话管理**：SQLite 持久化，支持多会话切换
+- **可观测性**：token 统计、执行日志、failover 记录
 
 ## 可选组件
 
@@ -85,21 +73,10 @@ npm install
 npm run start
 ```
 
-### SiliconFlow CLI 模块
-
-参见 [siliconflow/README.md](./siliconflow/README.md)。
-
-## 常用开发命令
+### SiliconFlow CLI
 
 ```bash
-# 检查技能可用性
-cd webapp/backend
-source venv/bin/activate
-python3 verify_skills.py
+python3 siliconflow/scripts/chat.py
 ```
 
-## 技能系统概览
-
-- Markdown 技能：在 `skills/<name>/SKILL.md` 中定义说明与执行模板。
-- Native 技能：在 `skills/<name>/skill_manifest.json` 中定义参数，再由脚本执行。
-- 高风险操作（如文件改写、终端命令）会走权限确认流程。
+详见 [siliconflow/README.md](./siliconflow/README.md)。
