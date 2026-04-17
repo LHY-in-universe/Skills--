@@ -1,5 +1,5 @@
 <script setup>
-import { inject, nextTick, ref, watch, reactive } from 'vue'
+import { inject, nextTick, ref, watch, reactive, computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 
 const messages = inject('messages')
@@ -7,8 +7,24 @@ const isTyping = inject('isTyping')
 const streamingContent = inject('streamingContent')
 const isStreaming = inject('isStreaming')
 const streamingModel = inject('streamingModel')
+const currentModel = inject('currentModel')
+const apiConfig = inject('apiConfig')
+const liveUsage = inject('liveUsage')
+const streamMeta = inject('streamMeta')
+const voiceRuntime = inject('voiceRuntime')
 const md = new MarkdownIt({ html: false, linkify: false })
 const container = ref(null)
+const processCollapsed = ref(false)
+
+const detectProviderFromUrl = (url) => {
+  if (!url) return ''
+  const host = String(url).toLowerCase()
+  if (host.includes('deepseek')) return 'DeepSeek'
+  if (host.includes('siliconflow')) return 'SiliconFlow'
+  if (host.includes('moonshot')) return 'Moonshot'
+  if (host.includes('openai')) return 'OpenAI'
+  return ''
+}
 
 // Track expanded state for tool messages by index
 const expandedTools = reactive({})
@@ -30,6 +46,13 @@ const renderMarkdown = (content) => {
   return md.render(content || '')
 }
 
+const currentStepIndex = computed(() => {
+  const plan = Array.isArray(streamMeta?.value?.plan) ? streamMeta.value.plan : []
+  const current = (streamMeta?.value?.currentStep || '').trim()
+  if (!current || plan.length === 0) return -1
+  return plan.findIndex((s) => String(s || '').trim() === current)
+})
+
 const scrollToBottom = async () => {
   await nextTick()
   if (container.value) {
@@ -44,6 +67,59 @@ watch(() => streamingContent.value, scrollToBottom)
 
 <template>
   <div class="messages-container" ref="container">
+    <div class="chat-status-bar">
+      <span>模型: {{ (streamingModel || apiConfig?.effective_model_id || currentModel || '-').split('/').pop() }}</span>
+      <span>供应商: {{ liveUsage?.provider || detectProviderFromUrl(apiConfig?.effective_api_url) || apiConfig?.effective_provider || '-' }}</span>
+      <span>Token: {{ (liveUsage?.total || 0).toLocaleString() }} (↑{{ (liveUsage?.prompt || 0).toLocaleString() }} ↓{{ (liveUsage?.completion || 0).toLocaleString() }})</span>
+      <span>Cache: R {{ (liveUsage?.cached_read || 0).toLocaleString() }} / W {{ (liveUsage?.cached_write || 0).toLocaleString() }}</span>
+    </div>
+    <div v-if="voiceRuntime?.enabled || (voiceRuntime?.phase && voiceRuntime.phase !== 'idle')" class="voice-runtime-bar">
+      <span>语音会话: {{ voiceRuntime?.convId || '未绑定' }}</span>
+      <span>阶段: {{ voiceRuntime?.phase || 'idle' }}</span>
+      <span>来源: {{ voiceRuntime?.source || '-' }}</span>
+      <span>队列: {{ voiceRuntime?.queueLength || 0 }}</span>
+      <span>音频块: 收到 {{ voiceRuntime?.chunksReceived || 0 }} / 已播 {{ voiceRuntime?.chunksPlayed || 0 }}</span>
+    </div>
+    <div v-if="(streamMeta?.plan?.length || 0) > 0 || streamMeta?.currentStep || streamMeta?.audit || (streamMeta?.failover?.length || 0) > 0" class="process-panel">
+      <button class="process-header" @click="processCollapsed = !processCollapsed">
+        <span>过程面板</span>
+        <span class="process-toggle">{{ processCollapsed ? '展开' : '收起' }}</span>
+      </button>
+      <div v-if="!processCollapsed">
+        <div v-if="(streamMeta?.plan?.length || 0) > 0" class="process-line" style="align-items:flex-start;">
+          <span class="process-label">计划</span>
+          <ol class="process-plan">
+            <li
+              v-for="(step, idx) in streamMeta.plan"
+              :key="`plan-${idx}`"
+              :class="{ active: idx === currentStepIndex }"
+            >
+              {{ step }}
+            </li>
+          </ol>
+        </div>
+        <div v-if="streamMeta?.currentStep" class="process-line">
+          <span class="process-label">步骤</span>
+          <span>⏳ {{ streamMeta.currentStep }}</span>
+        </div>
+        <div v-if="streamMeta?.audit" class="process-line">
+          <span class="process-label">自检</span>
+          <span v-if="streamMeta.audit === 'ok'">通过</span>
+          <span v-else>重试中{{ streamMeta?.auditReason ? `：${streamMeta.auditReason}` : '' }}</span>
+        </div>
+        <div v-if="(streamMeta?.failover?.length || 0) > 0" class="process-line" style="align-items:flex-start;">
+          <span class="process-label">故障转移</span>
+          <ul class="process-plan" style="padding-left:14px;">
+            <li v-for="(f, idx) in streamMeta.failover" :key="'fo-'+idx">
+              <template v-if="f.failover_type === 'auth_profile'">鉴权轮转 {{ f.from_profile }} → {{ f.to_profile }}</template>
+              <template v-else-if="f.failover_type === 'model_fallback'">模型回退 {{ f.from_model }} → {{ f.to_model }}</template>
+              <template v-else>回退耗尽（{{ f.error_class || 'unknown' }}）</template>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
     <div v-if="messages.length === 0" style="display: flex; flex: 1; align-items: center; justify-content: center; color: var(--text-secondary); flex-direction: column; opacity: 0.5;">
       <h2 style="font-family: var(--font-display); margin-bottom: 0.5rem;">How can I help you?</h2>
       <p style="font-size: 0.9rem;">Start a new conversation or select a skill.</p>
@@ -178,6 +254,24 @@ watch(() => streamingContent.value, scrollToBottom)
   margin: 0;
 }
 
+.voice-runtime-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 0.8rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: rgba(20, 24, 34, 0.55);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.voice-runtime-bar span {
+  white-space: nowrap;
+}
+
 /* Streaming cursor */
 .message.streaming::after {
   content: '▋';
@@ -201,6 +295,84 @@ watch(() => streamingContent.value, scrollToBottom)
   padding-left: 4px;
   font-family: 'Fira Code', monospace;
   letter-spacing: 0.02em;
+}
+
+.chat-status-bar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'Fira Code', monospace;
+  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  backdrop-filter: blur(4px);
+}
+
+.process-panel {
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'Fira Code', monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.process-header {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+}
+
+.process-toggle {
+  opacity: 0.75;
+}
+
+.process-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.process-label {
+  min-width: 30px;
+  color: var(--text-primary);
+  opacity: 0.8;
+}
+
+.process-plan {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.process-plan li {
+  margin: 0 0 3px 0;
+  opacity: 0.8;
+}
+
+.process-plan li.active {
+  color: var(--accent-color);
+  font-weight: 700;
+  opacity: 1;
 }
 
 /* Typing dots */

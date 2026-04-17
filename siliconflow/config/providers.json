@@ -1,0 +1,50 @@
+{
+  "providers": [
+    {
+      "id": "siliconflow",
+      "label": "SiliconFlow",
+      "default_api_url": "https://api.siliconflow.cn/v1/chat/completions",
+      "required_env_keys": [
+        "SILICONFLOW_API_KEY"
+      ],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "default_api_url": "https://api.deepseek.com/v1/chat/completions",
+      "required_env_keys": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "kimi",
+      "label": "KimiCoding",
+      "aliases": [
+        "kimi-coding",
+        "kimi-code"
+      ],
+      "default_api_url": "https://api.kimi.com/coding/v1/chat/completions",
+      "required_env_keys": [
+        "KIMI_API_KEY",
+        "KIMICODE_API_KEY"
+      ],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "nvidia",
+      "label": "NVIDIA",
+      "aliases": [
+        "nim",
+        "nvidia-nim"
+      ],
+      "default_api_url": "https://integrate.api.nvidia.com/v1/chat/completions",
+      "required_env_keys": [
+        "NVIDIA_API_KEY",
+        "NVIDIA_NIM_API_KEY"
+      ],
+      "api_protocol": "openai-chat"
+    }
+  ]
+}

@@ -3,5 +3,6 @@
   "assistant_name": "ClawTest",
   "user_location": "深圳",
   "user_occupation": "AI",
-  "user_birthday": "2004-01-05"
+  "user_birthday": "2004-01-05",
+  "last_conversation_topic": "功能介绍和记忆查询"
 }

@@ -1,0 +1,72 @@
+{
+  "entries": {
+    "file_editor": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "get_current_time": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "get_system_info": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "get_weather": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "memory_forget": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "memory_save": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "monte_carlo_integration": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "pip_venv": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "run_terminal": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "summary_rules": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "vision_analyze": {
+      "api_key_ref": {
+        "id": "VISION_KEY",
+        "source": "env"
+      },
+      "enabled": false,
+      "env": {}
+    },
+    "write_memory": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "write_python": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    }
+  }
+}

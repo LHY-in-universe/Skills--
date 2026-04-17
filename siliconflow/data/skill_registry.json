@@ -235,5 +235,38 @@
         "op"
       ]
     }
+  },
+  {
+    "tool_name": "vision_analyze",
+    "skill_dir": "vision_analyze",
+    "script": "scripts/analyze_image.py",
+    "description": "分析图片内容，支持本地路径(image_path)或网络地址(image_url)，可附带问题(question)。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "image_path": {
+          "type": "string",
+          "description": "本地图片绝对路径（与 image_url 二选一）"
+        },
+        "image_url": {
+          "type": "string",
+          "description": "网络图片 URL（与 image_path 二选一）"
+        },
+        "question": {
+          "type": "string",
+          "description": "希望视觉模型回答的问题"
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "normal",
+            "high"
+          ],
+          "description": "图像分析细节等级"
+        }
+      },
+      "required": []
+    }
   }
 ]

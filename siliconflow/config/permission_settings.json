@@ -1,0 +1,5 @@
+{
+  "always_allow_tools": [
+    "run_terminal"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "embedding_policy": "follow_chat_provider",
+  "fast_first_token": true,
+  "loop_guard_enabled": true,
+  "planner_enabled": true,
+  "planner_max_steps": 4,
+  "retry_policy": {
+    "default": {
+      "attempts": 3,
+      "backoff": 2.0,
+      "max_delay_ms": 3000,
+      "min_delay_ms": 600
+    }
+  },
+  "self_correction_enabled": true,
+  "self_correction_max_retries": 2,
+  "vision_models": {
+    "deepseek": "",
+    "default": "",
+    "kimi": "",
+    "siliconflow": ""
+  }
+}

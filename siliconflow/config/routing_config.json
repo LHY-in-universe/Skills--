@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "router_model": "Qwen/Qwen2.5-7B-Instruct",
-  "summary_model": "Qwen/Qwen2.5-7B-Instruct",
+  "router_model": "Qwen/Qwen3.5-4B",
+  "summary_model": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
   "tiers": {
-    "easy": "Qwen/Qwen3.5-4B",
-    "medium": "Qwen/Qwen3.5-27B",
-    "hard": "Qwen/Qwen3.5-397B-A17B"
+    "easy": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
+    "hard": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
+    "medium": "NVIDIA-Llama-3.3-Nemotron-Super-49B"
   }
 }

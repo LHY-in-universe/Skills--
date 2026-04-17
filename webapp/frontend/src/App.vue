@@ -4,13 +4,14 @@ import Sidebar from './components/Sidebar.vue'
 import ChatContainer from './components/ChatContainer.vue'
 import MessageInput from './components/MessageInput.vue'
 import VoiceAssistant from './components/VoiceAssistant.vue'
+import { createApiClient } from './lib/api'
 
 const messages = ref([])
 const isTyping = ref(false)
 const streamingContent = ref('')
 const isStreaming = ref(false)
 const streamingModel = ref('')  // model name shown during generation
-const models = ref({})
+const models = ref([])
 const currentModel = ref('')
 const skills = ref([])
 const isLightMode = ref(false)
@@ -19,6 +20,17 @@ const conversations = ref([])
 const activeConversationId = ref('')
 const routingConfig = ref({ enabled: false, router_model: '', summary_model: '', tiers: { easy: '', medium: '', hard: '' } })
 const lastRouteInfo = ref({ tier: '', model: '' })
+const liveUsage = ref({ prompt: 0, completion: 0, total: 0, call_type: '', model: '', provider: '', cached_read: 0, cached_write: 0 })
+const streamMeta = ref({ plan: [], currentStep: '', audit: '', auditReason: '', failover: [] })
+const voiceRuntime = ref({
+  enabled: false,
+  convId: '',
+  phase: 'idle',
+  source: '',
+  queueLength: 0,
+  chunksReceived: 0,
+  chunksPlayed: 0,
+})
 
 // Desktop sprite (Electron) mode
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI
@@ -28,6 +40,17 @@ const isCompact = ref(false)
 const API_BASE = (isElectron && window.location.protocol === 'file:')
   ? 'http://localhost:8000'
   : ''
+const api = createApiClient(API_BASE)
+const notice = ref({ show: false, type: 'info', text: '' })
+let noticeTimer = null
+
+const notify = (text, type = 'info') => {
+  notice.value = { show: true, type, text: String(text || '') }
+  if (noticeTimer) clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => {
+    notice.value.show = false
+  }, 2600)
+}
 
 const toggleCompact = () => {
   isCompact.value = !isCompact.value
@@ -70,9 +93,15 @@ provide('activeConversationId', activeConversationId)
 provide('apiBase', API_BASE)
 provide('routingConfig', routingConfig)
 provide('lastRouteInfo', lastRouteInfo)
+provide('liveUsage', liveUsage)
+provide('streamMeta', streamMeta)
+provide('voiceRuntime', voiceRuntime)
+provide('apiClient', api)
+provide('notify', notify)
+
 const fetchConfig = async () => {
   try {
-    const configRes = await fetch(`${API_BASE}/api/config`).then(r => r.json())
+    const configRes = await api.get('/api/config')
     if (configRes) { apiConfig.value = configRes; currentModel.value = configRes.current_model }
   } catch (err) {
     console.error('Failed to fetch config:', err)
@@ -99,13 +128,9 @@ const exportConversation = () => {
   URL.revokeObjectURL(url)
 }
 
-const switchModel = async (modelId) => {
-  await fetch(`${API_BASE}/api/config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: modelId })
-  }).catch(() => {})
-  currentModel.value = modelId
+const switchModel = async (modelName) => {
+  await api.post('/api/config', { model: modelName }).catch(() => {})
+  await fetchConfig()
 }
 
 provide('exportConversation', exportConversation)
@@ -113,8 +138,21 @@ provide('switchModel', switchModel)
 
 const fetchHistory = async () => {
   try {
-    const historyRes = await fetch(`${API_BASE}/api/history`).then(res => res.json())
-    messages.value = historyRes
+    const historyRes = await api.get('/api/history')
+    const buckets = new Map()
+    for (const m of messages.value) {
+      const key = `${m?.role || ''}|${m?.content || ''}|${JSON.stringify(m?.tool_calls || [])}`
+      const arr = buckets.get(key) || []
+      if (m && (m._tokens || m._model)) arr.push({ _tokens: m._tokens, _model: m._model })
+      buckets.set(key, arr)
+    }
+    messages.value = historyRes.map((m) => {
+      const key = `${m?.role || ''}|${m?.content || ''}|${JSON.stringify(m?.tool_calls || [])}`
+      const arr = buckets.get(key) || []
+      const cached = arr.shift()
+      buckets.set(key, arr)
+      return cached ? { ...m, ...cached } : m
+    })
   } catch (err) {
     console.error('Failed to fetch history:', err)
   }
@@ -122,7 +160,7 @@ const fetchHistory = async () => {
 
 const fetchConversations = async () => {
   try {
-    const res = await fetch(`${API_BASE}/api/conversations`).then(r => r.json())
+    const res = await api.get('/api/conversations')
     conversations.value = res
     const active = res.find(c => c.active)
     if (active) activeConversationId.value = active.id
@@ -134,13 +172,13 @@ const fetchConversations = async () => {
 const switchConversation = async (convId) => {
   if (convId === activeConversationId.value) return
   isTyping.value = false
-  await fetch(`${API_BASE}/api/conversations/${convId}/activate`, { method: 'POST' })
+  await api.post(`/api/conversations/${convId}/activate`)
   activeConversationId.value = convId
   await Promise.all([fetchHistory(), fetchConversations(), fetchConfig()])
 }
 
 const createConversation = async () => {
-  const res = await fetch(`${API_BASE}/api/conversations`, { method: 'POST' }).then(r => r.json())
+  const res = await api.post('/api/conversations')
   activeConversationId.value = res.id
   await Promise.all([fetchHistory(), fetchConversations()])
 }
@@ -148,12 +186,23 @@ const createConversation = async () => {
 const fetchInitialData = async () => {
   const safe = (p) => p.catch(err => { console.error('fetch error:', err); return null })
   const [modelsRes, configRes, skillsRes, routingRes] = await Promise.all([
-    safe(fetch(`${API_BASE}/api/models`).then(r => r.json())),
-    safe(fetch(`${API_BASE}/api/config`).then(r => r.json())),
-    safe(fetch(`${API_BASE}/api/skills`).then(r => r.json())),
-    safe(fetch(`${API_BASE}/api/routing`).then(r => r.json())),
+    safe(api.get('/api/models')),
+    safe(api.get('/api/config')),
+    safe(api.get('/api/skills')),
+    safe(api.get('/api/routing')),
   ])
-  if (modelsRes) models.value = modelsRes
+  if (modelsRes) {
+    // Transform dict { "Display Name": { id, provider, api_url } } to array of objects
+    models.value = Object.entries(modelsRes).map(([displayName, config]) => ({
+      displayName,
+      apiId: config.id || config, // handle legacy string values if any
+      provider: config.provider || '',
+      apiUrl: config.api_url || '',
+      enabled: config.enabled !== false,
+      capabilities: config.capabilities || {},
+      requires: config.requires || [],
+    }))
+  }
   if (configRes) { apiConfig.value = configRes; currentModel.value = configRes.current_model }
   if (skillsRes) skills.value = skillsRes
   if (routingRes) routingConfig.value = routingRes
@@ -183,8 +232,43 @@ const processStream = async (response) => {
       try { event = JSON.parse(line.slice(6)) } catch { continue }
 
       switch (event.type) {
+        case 'plan':
+          streamMeta.value.plan = Array.isArray(event.steps) ? event.steps : []
+          break
+
+        case 'step_start':
+          streamMeta.value.currentStep = event.step || ''
+          break
+
+        case 'step_done':
+          streamMeta.value.currentStep = ''
+          break
+
+        case 'audit':
+          streamMeta.value.audit = event.ok ? 'ok' : 'retry'
+          if (event.ok === false && event.reason) streamMeta.value.auditReason = event.reason
+          break
+        case 'failover_step': {
+          const arr = Array.isArray(streamMeta.value.failover) ? streamMeta.value.failover : []
+          arr.push(event)
+          streamMeta.value.failover = arr.slice(-8)
+          break
+        }
+        case 'failover_exhausted': {
+          const arr = Array.isArray(streamMeta.value.failover) ? streamMeta.value.failover : []
+          arr.push({ ...event, failover_type: 'exhausted' })
+          streamMeta.value.failover = arr.slice(-8)
+          break
+        }
+
         case 'start':
           streamingModel.value = event._model || currentModel.value
+          apiConfig.value = {
+            ...(apiConfig.value || {}),
+            current_model: event._model || currentModel.value,
+            effective_model_id: event._model_id || apiConfig.value?.effective_model_id || '',
+            effective_provider: event._provider || apiConfig.value?.effective_provider || ''
+          }
           break
 
         case 'text':
@@ -201,6 +285,14 @@ const processStream = async (response) => {
 
         case 'usage':
           _pendingUsage = { prompt: event.prompt, completion: event.completion, total: event.total }
+          liveUsage.value.prompt += event.prompt || 0
+          liveUsage.value.completion += event.completion || 0
+          liveUsage.value.total += event.total || ((event.prompt || 0) + (event.completion || 0))
+          liveUsage.value.call_type = event.call_type || liveUsage.value.call_type || ''
+          liveUsage.value.model = event.model || liveUsage.value.model || ''
+          liveUsage.value.provider = event.provider || liveUsage.value.provider || ''
+          liveUsage.value.cached_read += event.cached_read || 0
+          liveUsage.value.cached_write += event.cached_write || 0
           sidebarRef.value?.fetchTokenStats()
           break
 
@@ -214,7 +306,7 @@ const processStream = async (response) => {
             description: event.description
           }
           await fetchHistory()
-          return
+          return { status: 'permission' }
 
         case 'aborted':
           streamingContent.value = ''
@@ -222,15 +314,18 @@ const processStream = async (response) => {
           isStreaming.value = false
           isTyping.value = false
           await fetchHistory()
-          return
+          return { status: 'aborted' }
 
         case 'error':
           streamingContent.value = ''
           streamingModel.value = ''
           isStreaming.value = false
           isTyping.value = false
-          messages.value.push({ role: 'assistant', content: `**Error:** ${event.content}` })
-          return
+          return {
+            status: 'error',
+            message: event.content || 'Unknown stream error',
+            errorClass: event.error_class || ''
+          }
 
         case 'done': {
           respondingModel = event._model || streamingModel.value || currentModel.value
@@ -261,35 +356,57 @@ const processStream = async (response) => {
       }
     }
   }
+  return { status: 'done' }
 }
 
 const sendMessage = async (text) => {
   if (!text.trim()) return
+  if (abortController) {
+    try { abortController.abort() } catch {}
+  }
   messages.value.push({ role: 'user', content: text })
   isTyping.value = true
   isStreaming.value = true
   streamingContent.value = ''
-
-  abortController = new AbortController()
-  try {
-    const response = await fetch(`${API_BASE}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_input: text }),
-      signal: abortController.signal
-    })
-    if (!response.ok) throw new Error('Request failed')
-    await processStream(response)
-  } catch (err) {
-    streamingContent.value = ''
-    streamingModel.value = ''
-    isStreaming.value = false
-    if (err.name !== 'AbortError') {
-      messages.value.push({
-        role: 'assistant',
-        content: `**Error:** ${err.message}. Please check your API configuration.`
+  streamMeta.value = { plan: [], currentStep: '', audit: '', auditReason: '', failover: [] }
+  liveUsage.value = { prompt: 0, completion: 0, total: 0, call_type: '', model: '', provider: '', cached_read: 0, cached_write: 0 }
+  let retried = false
+  while (true) {
+    abortController = new AbortController()
+    try {
+      const response = await api.stream('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_input: text, conv_id: activeConversationId.value || undefined }),
+        signal: abortController.signal
       })
-      isTyping.value = false
+      const result = await processStream(response)
+      if (result?.status === 'error') {
+        const msg = String(result.message || '')
+        const errClass = result.errorClass ? ` (${result.errorClass})` : ''
+        const isConnErr = msg.toLowerCase().includes('connection error')
+        if (isConnErr && !retried) {
+          retried = true
+          isTyping.value = true
+          isStreaming.value = true
+          streamingContent.value = ''
+          continue
+        }
+        messages.value.push({ role: 'assistant', content: `**Error${errClass}:** ${msg}` })
+      }
+      break
+    } catch (err) {
+      streamingContent.value = ''
+      streamingModel.value = ''
+      isStreaming.value = false
+      if (err.name !== 'AbortError') {
+        messages.value.push({
+          role: 'assistant',
+          content: `**Error:** ${err.message}. Please check your API configuration.`
+        })
+        isTyping.value = false
+      }
+      break
     }
   }
 }
@@ -302,14 +419,20 @@ const handlePermissionResponse = async (granted, alwaysAllow = false) => {
 
   abortController = new AbortController()
   try {
-    const response = await fetch(`${API_BASE}/api/chat/resume`, {
+      const response = await api.stream('/api/chat/resume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ granted, always_allow: alwaysAllow }),
+      body: JSON.stringify({
+        granted,
+        always_allow: alwaysAllow,
+        conv_id: activeConversationId.value || undefined
+      }),
       signal: abortController.signal
     })
-    if (!response.ok) throw new Error('Resume failed')
-    await processStream(response)
+    const result = await processStream(response)
+    if (result?.status === 'error') {
+      messages.value.push({ role: 'assistant', content: `**Error:** ${result.message || 'Resume failed'}` })
+    }
   } catch (err) {
     streamingContent.value = ''
     streamingModel.value = ''
@@ -325,11 +448,11 @@ const abortChat = async () => {
   if (abortController) abortController.abort()
   isTyping.value = false
   permissionDialog.value.visible = false
-  await fetch(`${API_BASE}/api/chat/abort`, { method: 'POST' }).catch(() => {})
+  await api.post('/api/chat/abort', { conv_id: activeConversationId.value || undefined }).catch(() => {})
 }
 
 const clearHistory = async () => {
-  await fetch(`${API_BASE}/api/history/clear`, { method: 'POST' })
+  await api.post('/api/history/clear?conv_id=' + encodeURIComponent(activeConversationId.value || ''))
   messages.value = []
   await fetchConversations()
 }
@@ -364,6 +487,7 @@ onMounted(fetchInitialData)
     @create-conversation="createConversation"
   />
   <main v-show="!isElectron || !isCompact" class="chat-main">
+    <div v-if="notice.show" class="global-notice" :class="`notice-${notice.type}`">{{ notice.text }}</div>
     <ChatContainer />
     <MessageInput @send="sendMessage" @abort="abortChat" />
   </main>
@@ -400,3 +524,23 @@ onMounted(fetchInitialData)
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.global-notice {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  margin: 8px auto 0;
+  width: fit-content;
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--msg-assistant-bg);
+  color: var(--text-primary);
+}
+.notice-success { border-color: #10b98166; }
+.notice-error { border-color: #ef444466; }
+</style>

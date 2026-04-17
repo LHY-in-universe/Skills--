@@ -1,8 +1,32 @@
 {
-    "Qwen-27B": "Qwen/Qwen3.5-27B",
-    "DeepSeek-V3": "deepseek-ai/DeepSeek-V3.2",
-    "GLM-4.7": "Pro/zai-org/GLM-4.7",
-    "Qwen3.5-397B": "Qwen/Qwen3.5-397B-A17B",
-    "Qwen3.5-4B": "Qwen/Qwen3.5-4B",
-    "Qwen2.5-7B": "Qwen/Qwen2.5-7B-Instruct"
+  "DeepSeek-Chat": {
+    "enabled": false,
+    "id": "deepseek-chat",
+    "provider": "deepseek"
+  },
+  "GLM-5": {
+    "enabled": false,
+    "id": "Pro/zai-org/GLM-5",
+    "provider": "siliconflow"
+  },
+  "KimiCode": {
+    "enabled": false,
+    "id": "kimi/kimi-code",
+    "provider": "kimi"
+  },
+  "Qwen3.5-27B": {
+    "enabled": false,
+    "id": "Qwen/Qwen3.5-27B",
+    "provider": "siliconflow"
+  },
+  "Qwen3.5-4B": {
+    "enabled": false,
+    "id": "Qwen/Qwen3.5-4B",
+    "provider": "siliconflow"
+  },
+  "NVIDIA-Llama-3.3-Nemotron-Super-49B": {
+    "enabled": true,
+    "id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "provider": "nvidia"
+  }
 }

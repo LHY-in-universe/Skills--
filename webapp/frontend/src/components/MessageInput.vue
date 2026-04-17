@@ -28,11 +28,12 @@ const slashItems = computed(() => {
     { label: '/clear',  desc: '清空当前对话',    run: () => clearHistoryFn?.() },
     { label: '/new',    desc: '新建对话',          run: () => createConversationFn?.() },
     { label: '/export', desc: '导出为 Markdown',  run: () => exportConversation?.() },
+    { label: '/vision', desc: '视觉分析: /vision <路径或URL> | 问题', run: () => {} },
   ]
-  const modelItems = Object.entries(models?.value || {}).map(([name, id]) => ({
-    label: `/model ${name}`,
-    desc: id,
-    run: () => switchModel?.(id)
+  const modelItems = (models?.value || []).map((m) => ({
+    label: `/model ${m.displayName}`,
+    desc: m.apiId,
+    run: () => switchModel?.(m.displayName)
   }))
   return [...base, ...modelItems].filter(item =>
     item.label.slice(1).toLowerCase().includes(query)

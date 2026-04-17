@@ -1,16 +1,24 @@
 {
-  "version": 1,
+  "version": 2,
   "global": {
-    "calls": 108,
-    "prompt": 84298,
-    "completion": 16156,
-    "total": 100454,
+    "calls": 345,
+    "prompt": 375066,
+    "completion": 39257,
+    "total": 414323,
+    "estimated_calls": 0,
+    "estimated_total": 0,
     "by_type": {
       "chat": {
-        "calls": 30,
-        "prompt": 76905,
-        "completion": 15978,
-        "total": 92883
+        "calls": 92,
+        "prompt": 225054,
+        "completion": 29335,
+        "total": 254389
+      },
+      "skill": {
+        "calls": 20,
+        "prompt": 137850,
+        "completion": 9659,
+        "total": 147509
       },
       "router": {
         "calls": 3,
@@ -19,23 +27,80 @@
         "total": 0
       },
       "compress": {
-        "calls": 2,
-        "prompt": 6361,
-        "completion": 178,
-        "total": 6539
+        "calls": 3,
+        "prompt": 10052,
+        "completion": 263,
+        "total": 10315
       },
       "embedding_ctx": {
-        "calls": 36,
-        "prompt": 612,
+        "calls": 95,
+        "prompt": 1062,
         "completion": 0,
-        "total": 612
+        "total": 1062
       },
       "embedding_mem": {
-        "calls": 37,
-        "prompt": 420,
+        "calls": 132,
+        "prompt": 1048,
         "completion": 0,
-        "total": 420
+        "total": 1048
       }
+    },
+    "by_stage": {
+      "main_chat": {
+        "calls": 53,
+        "prompt": 127881,
+        "completion": 11553,
+        "total": 139434
+      },
+      "tool_followup": {
+        "calls": 20,
+        "prompt": 137850,
+        "completion": 9659,
+        "total": 147509
+      },
+      "compression": {
+        "calls": 0,
+        "prompt": 0,
+        "completion": 0,
+        "total": 0
+      },
+      "embedding": {
+        "calls": 97,
+        "prompt": 681,
+        "completion": 0,
+        "total": 681
+      },
+      "routing": {
+        "calls": 0,
+        "prompt": 0,
+        "completion": 0,
+        "total": 0
+      },
+      "other": {
+        "calls": 0,
+        "prompt": 0,
+        "completion": 0,
+        "total": 0
+      }
+    },
+    "errors": {
+      "count": 0,
+      "by_class": {}
+    },
+    "failover": {
+      "count": 5,
+      "by_type": {
+        "model_fallback": 5
+      },
+      "success": 5,
+      "exhausted": 0
+    },
+    "latency": {
+      "count": 19,
+      "sum_ms": 472811,
+      "avg_ms": 24884,
+      "p95_ms_est": 85568,
+      "max_ms": 90072
     }
   },
   "daily": {
@@ -69,7 +134,10 @@
           "completion": 72,
           "total": 2742
         }
-      }
+      },
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {}
     },
     "2026-04-05": {
       "calls": 55,
@@ -107,21 +175,221 @@
           "completion": 106,
           "total": 3797
         }
+      },
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {}
+    },
+    "2026-04-09": {
+      "calls": 12,
+      "prompt": 6566,
+      "completion": 655,
+      "total": 7221,
+      "by_type": {
+        "compress": {
+          "calls": 1,
+          "prompt": 3691,
+          "completion": 85,
+          "total": 3776
+        },
+        "embedding_ctx": {
+          "calls": 5,
+          "prompt": 133,
+          "completion": 0,
+          "total": 133
+        },
+        "embedding_mem": {
+          "calls": 4,
+          "prompt": 22,
+          "completion": 0,
+          "total": 22
+        },
+        "chat": {
+          "calls": 2,
+          "prompt": 2720,
+          "completion": 570,
+          "total": 3290
+        }
+      },
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {}
+    },
+    "2026-04-10": {
+      "calls": 179,
+      "prompt": 213308,
+      "completion": 17782,
+      "total": 231090,
+      "by_type": {
+        "embedding_ctx": {
+          "calls": 54,
+          "prompt": 317,
+          "completion": 0,
+          "total": 317
+        },
+        "embedding_mem": {
+          "calls": 85,
+          "prompt": 560,
+          "completion": 0,
+          "total": 560
+        },
+        "chat": {
+          "calls": 22,
+          "prompt": 80606,
+          "completion": 8476,
+          "total": 89082
+        },
+        "skill": {
+          "calls": 18,
+          "prompt": 131825,
+          "completion": 9306,
+          "total": 141131
+        }
+      },
+      "by_stage": {
+        "embedding": {
+          "calls": 91,
+          "prompt": 635,
+          "completion": 0,
+          "total": 635
+        },
+        "main_chat": {
+          "calls": 15,
+          "prompt": 63058,
+          "completion": 7242,
+          "total": 70300
+        },
+        "tool_followup": {
+          "calls": 18,
+          "prompt": 131825,
+          "completion": 9306,
+          "total": 141131
+        }
+      },
+      "estimated_calls": 0,
+      "estimated_total": 0
+    },
+    "2026-04-11": {
+      "calls": 22,
+      "prompt": 35512,
+      "completion": 960,
+      "total": 36472,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_type": {
+        "embedding_mem": {
+          "calls": 3,
+          "prompt": 21,
+          "completion": 0,
+          "total": 21
+        },
+        "chat": {
+          "calls": 19,
+          "prompt": 35491,
+          "completion": 960,
+          "total": 36451
+        }
+      },
+      "by_stage": {
+        "embedding": {
+          "calls": 3,
+          "prompt": 21,
+          "completion": 0,
+          "total": 21
+        },
+        "main_chat": {
+          "calls": 19,
+          "prompt": 35491,
+          "completion": 960,
+          "total": 36451
+        }
+      }
+    },
+    "2026-04-12": {
+      "calls": 2,
+      "prompt": 5850,
+      "completion": 39,
+      "total": 5889,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_type": {
+        "chat": {
+          "calls": 2,
+          "prompt": 5850,
+          "completion": 39,
+          "total": 5889
+        }
+      },
+      "by_stage": {
+        "main_chat": {
+          "calls": 2,
+          "prompt": 5850,
+          "completion": 39,
+          "total": 5889
+        }
+      }
+    },
+    "2026-04-13": {
+      "calls": 22,
+      "prompt": 29532,
+      "completion": 3665,
+      "total": 33197,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_type": {
+        "chat": {
+          "calls": 17,
+          "prompt": 23482,
+          "completion": 3312,
+          "total": 26794
+        },
+        "skill": {
+          "calls": 2,
+          "prompt": 6025,
+          "completion": 353,
+          "total": 6378
+        },
+        "embedding_mem": {
+          "calls": 3,
+          "prompt": 25,
+          "completion": 0,
+          "total": 25
+        }
+      },
+      "by_stage": {
+        "main_chat": {
+          "calls": 17,
+          "prompt": 23482,
+          "completion": 3312,
+          "total": 26794
+        },
+        "tool_followup": {
+          "calls": 2,
+          "prompt": 6025,
+          "completion": 353,
+          "total": 6378
+        },
+        "embedding": {
+          "calls": 3,
+          "prompt": 25,
+          "completion": 0,
+          "total": 25
+        }
       }
     }
   },
   "by_model": {
     "BAAI/bge-m3": {
-      "calls": 73,
-      "prompt": 1032,
+      "calls": 227,
+      "prompt": 2110,
       "completion": 0,
-      "total": 1032
+      "total": 2110
     },
     "Qwen/Qwen3.5-4B": {
-      "calls": 26,
-      "prompt": 71494,
-      "completion": 9703,
-      "total": 81197
+      "calls": 30,
+      "prompt": 78440,
+      "completion": 11026,
+      "total": 89466
     },
     "Qwen/Qwen3.5-27B": {
       "calls": 4,
@@ -130,10 +398,1498 @@
       "total": 11686
     },
     "Qwen/Qwen2.5-7B-Instruct": {
-      "calls": 5,
-      "prompt": 6361,
-      "completion": 178,
-      "total": 6539
+      "calls": 6,
+      "prompt": 10052,
+      "completion": 263,
+      "total": 10315
+    },
+    "DeepSeek-Chat": {
+      "calls": 6,
+      "prompt": 15066,
+      "completion": 1085,
+      "total": 16151
+    },
+    "deepseek-chat": {
+      "calls": 68,
+      "prompt": 257905,
+      "completion": 20240,
+      "total": 278145
+    },
+    "Pro/zai-org/GLM-5": {
+      "calls": 4,
+      "prompt": 6082,
+      "completion": 368,
+      "total": 6450
+    }
+  },
+  "by_trace": {
+    "89a3ea97e2c1": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "ece99d4d1053": {
+      "calls": 3,
+      "prompt": 2405,
+      "completion": 419,
+      "total": 2824,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 10,
+          "completion": 0,
+          "total": 10
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2395,
+          "completion": 419,
+          "total": 2814
+        }
+      }
+    },
+    "58c47274ac65": {
+      "calls": 3,
+      "prompt": 2760,
+      "completion": 296,
+      "total": 3056,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2752,
+          "completion": 296,
+          "total": 3048
+        }
+      }
+    },
+    "9c21a3d029e6": {
+      "calls": 3,
+      "prompt": 3104,
+      "completion": 52,
+      "total": 3156,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 18,
+          "completion": 0,
+          "total": 18
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 3086,
+          "completion": 52,
+          "total": 3138
+        }
+      }
+    },
+    "14475be57bc5": {
+      "calls": 2,
+      "prompt": 18,
+      "completion": 0,
+      "total": 18,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 18,
+          "completion": 0,
+          "total": 18
+        }
+      }
+    },
+    "d6ec0835310f": {
+      "calls": 3,
+      "prompt": 2335,
+      "completion": 171,
+      "total": 2506,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2327,
+          "completion": 171,
+          "total": 2498
+        }
+      }
+    },
+    "51a00a2c4e24": {
+      "calls": 3,
+      "prompt": 2557,
+      "completion": 51,
+      "total": 2608,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 20,
+          "completion": 0,
+          "total": 20
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2537,
+          "completion": 51,
+          "total": 2588
+        }
+      }
+    },
+    "30f102944776": {
+      "calls": 12,
+      "prompt": 11337,
+      "completion": 459,
+      "total": 11796,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 8,
+          "prompt": 80,
+          "completion": 0,
+          "total": 80
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2537,
+          "completion": 51,
+          "total": 2588
+        },
+        "tool_followup": {
+          "calls": 3,
+          "prompt": 8720,
+          "completion": 408,
+          "total": 9128
+        }
+      }
+    },
+    "cc3b38ce521f": {
+      "calls": 3,
+      "prompt": 3832,
+      "completion": 239,
+      "total": 4071,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 22,
+          "completion": 0,
+          "total": 22
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 3810,
+          "completion": 239,
+          "total": 4049
+        }
+      }
+    },
+    "a9cad48295fd": {
+      "calls": 3,
+      "prompt": 4114,
+      "completion": 3280,
+      "total": 7394,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 18,
+          "completion": 0,
+          "total": 18
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 4096,
+          "completion": 3280,
+          "total": 7376
+        }
+      }
+    },
+    "3da30d97304d": {
+      "calls": 8,
+      "prompt": 11586,
+      "completion": 3357,
+      "total": 14943,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 6,
+          "prompt": 54,
+          "completion": 0,
+          "total": 54
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 4097,
+          "completion": 71,
+          "total": 4168
+        },
+        "tool_followup": {
+          "calls": 1,
+          "prompt": 7435,
+          "completion": 3286,
+          "total": 10721
+        }
+      }
+    },
+    "3c7bc59a591f": {
+      "calls": 2,
+      "prompt": 18,
+      "completion": 0,
+      "total": 18,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 18,
+          "completion": 0,
+          "total": 18
+        }
+      }
+    },
+    "9889c268ae80": {
+      "calls": 2,
+      "prompt": 18,
+      "completion": 0,
+      "total": 18,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 18,
+          "completion": 0,
+          "total": 18
+        }
+      }
+    },
+    "26272bfd41c3": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "38dd3ff6b1c9": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "7da50ecc1e8d": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "9e1ca88aa40e": {
+      "calls": 2,
+      "prompt": 6,
+      "completion": 0,
+      "total": 6,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 6,
+          "completion": 0,
+          "total": 6
+        }
+      }
+    },
+    "ff1e3f87930b": {
+      "calls": 2,
+      "prompt": 10,
+      "completion": 0,
+      "total": 10,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 10,
+          "completion": 0,
+          "total": 10
+        }
+      }
+    },
+    "89b12d65cbcb": {
+      "calls": 2,
+      "prompt": 6,
+      "completion": 0,
+      "total": 6,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 6,
+          "completion": 0,
+          "total": 6
+        }
+      }
+    },
+    "ddcbb5af0fc2": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "0bf4d7ac77d1": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "83d7ccb7c9c6": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "9db534cf563f": {
+      "calls": 3,
+      "prompt": 2335,
+      "completion": 158,
+      "total": 2493,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2327,
+          "completion": 158,
+          "total": 2485
+        }
+      }
+    },
+    "670fcc7d22ff": {
+      "calls": 2,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "46900ec09448": {
+      "calls": 2,
+      "prompt": 6,
+      "completion": 0,
+      "total": 6,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 2,
+          "prompt": 6,
+          "completion": 0,
+          "total": 6
+        }
+      }
+    },
+    "4f54bfdfe482": {
+      "calls": 2,
+      "prompt": 2108,
+      "completion": 302,
+      "total": 2410,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 9,
+          "completion": 0,
+          "total": 9
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2099,
+          "completion": 302,
+          "total": 2401
+        }
+      }
+    },
+    "3643c9471fff": {
+      "calls": 10,
+      "prompt": 15032,
+      "completion": 2170,
+      "total": 17202,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 5,
+          "prompt": 45,
+          "completion": 0,
+          "total": 45
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2396,
+          "completion": 92,
+          "total": 2488
+        },
+        "tool_followup": {
+          "calls": 4,
+          "prompt": 12591,
+          "completion": 2078,
+          "total": 14669
+        }
+      }
+    },
+    "db04215c7610": {
+      "calls": 14,
+      "prompt": 62762,
+      "completion": 3925,
+      "total": 66687,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 7,
+          "prompt": 63,
+          "completion": 0,
+          "total": 63
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 6283,
+          "completion": 1526,
+          "total": 7809
+        },
+        "tool_followup": {
+          "calls": 6,
+          "prompt": 56416,
+          "completion": 2399,
+          "total": 58815
+        }
+      }
+    },
+    "c0d662b33842": {
+      "calls": 6,
+      "prompt": 32340,
+      "completion": 883,
+      "total": 33223,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 3,
+          "prompt": 27,
+          "completion": 0,
+          "total": 27
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 10612,
+          "completion": 55,
+          "total": 10667
+        },
+        "tool_followup": {
+          "calls": 2,
+          "prompt": 21701,
+          "completion": 828,
+          "total": 22529
+        }
+      }
+    },
+    "24bdad03c107": {
+      "calls": 6,
+      "prompt": 36708,
+      "completion": 786,
+      "total": 37494,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 3,
+          "prompt": 42,
+          "completion": 0,
+          "total": 42
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 11704,
+          "completion": 479,
+          "total": 12183
+        },
+        "tool_followup": {
+          "calls": 2,
+          "prompt": 24962,
+          "completion": 307,
+          "total": 25269
+        }
+      }
+    },
+    "03a9a8b997ef": {
+      "calls": 1,
+      "prompt": 5,
+      "completion": 0,
+      "total": 5,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 5,
+          "completion": 0,
+          "total": 5
+        }
+      }
+    },
+    "5ba84c600cc1": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "dd7bdfe46e74": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "d414661d08eb": {
+      "calls": 1,
+      "prompt": 3,
+      "completion": 0,
+      "total": 3,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 3,
+          "completion": 0,
+          "total": 3
+        }
+      }
+    },
+    "5e82ceeac59a": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "0a3ea509549b": {
+      "calls": 1,
+      "prompt": 3,
+      "completion": 0,
+      "total": 3,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 3,
+          "completion": 0,
+          "total": 3
+        }
+      }
+    },
+    "7f76730b75eb": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "4fa9c315113c": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "6fcbb35fa3ac": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "ebd25444fc19": {
+      "calls": 1,
+      "prompt": 4,
+      "completion": 0,
+      "total": 4,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 4,
+          "completion": 0,
+          "total": 4
+        }
+      }
+    },
+    "0fd1f7cbcae7": {
+      "calls": 1,
+      "prompt": 10,
+      "completion": 0,
+      "total": 10,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 10,
+          "completion": 0,
+          "total": 10
+        }
+      }
+    },
+    "58cf1f3c3704": {
+      "calls": 1,
+      "prompt": 8,
+      "completion": 0,
+      "total": 8,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 8,
+          "completion": 0,
+          "total": 8
+        }
+      }
+    },
+    "c07b3a1cb9b4": {
+      "calls": 2,
+      "prompt": 2077,
+      "completion": 23,
+      "total": 2100,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 7,
+          "completion": 0,
+          "total": 7
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2070,
+          "completion": 23,
+          "total": 2093
+        }
+      }
+    },
+    "21bf85bdf332": {
+      "calls": 2,
+      "prompt": 2079,
+      "completion": 1,
+      "total": 2080,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 7,
+          "completion": 0,
+          "total": 7
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2072,
+          "completion": 1,
+          "total": 2073
+        }
+      }
+    },
+    "d8ceb471cba9": {
+      "calls": 1,
+      "prompt": 1859,
+      "completion": 1,
+      "total": 1860,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 1859,
+          "completion": 1,
+          "total": 1860
+        }
+      }
+    },
+    "9af38d1898ee": {
+      "calls": 2,
+      "prompt": 2092,
+      "completion": 182,
+      "total": 2274,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 7,
+          "completion": 0,
+          "total": 7
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2085,
+          "completion": 182,
+          "total": 2267
+        }
+      }
+    },
+    "431b865f8661": {
+      "calls": 1,
+      "prompt": 1860,
+      "completion": 28,
+      "total": 1888,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 1860,
+          "completion": 28,
+          "total": 1888
+        }
+      }
+    },
+    "ee80fc9aeea6": {
+      "calls": 1,
+      "prompt": 67,
+      "completion": 135,
+      "total": 202,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 67,
+          "completion": 135,
+          "total": 202
+        }
+      }
+    },
+    "7e7a68535de7": {
+      "calls": 1,
+      "prompt": 72,
+      "completion": 10,
+      "total": 82,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 72,
+          "completion": 10,
+          "total": 82
+        }
+      }
+    },
+    "97a67268ecda": {
+      "calls": 1,
+      "prompt": 88,
+      "completion": 16,
+      "total": 104,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 88,
+          "completion": 16,
+          "total": 104
+        }
+      }
+    },
+    "8c387778de54": {
+      "calls": 1,
+      "prompt": 110,
+      "completion": 139,
+      "total": 249,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 110,
+          "completion": 139,
+          "total": 249
+        }
+      }
+    },
+    "3c80a9782b1b": {
+      "calls": 1,
+      "prompt": 2036,
+      "completion": 51,
+      "total": 2087,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2036,
+          "completion": 51,
+          "total": 2087
+        }
+      }
+    },
+    "ad3d68ac05a2": {
+      "calls": 1,
+      "prompt": 2168,
+      "completion": 31,
+      "total": 2199,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2168,
+          "completion": 31,
+          "total": 2199
+        }
+      }
+    },
+    "56a3c167217a": {
+      "calls": 1,
+      "prompt": 2204,
+      "completion": 52,
+      "total": 2256,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2204,
+          "completion": 52,
+          "total": 2256
+        }
+      }
+    },
+    "1a4dbb6de1ed": {
+      "calls": 1,
+      "prompt": 2588,
+      "completion": 10,
+      "total": 2598,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2588,
+          "completion": 10,
+          "total": 2598
+        }
+      }
+    },
+    "c0eb33dff248": {
+      "calls": 1,
+      "prompt": 2603,
+      "completion": 41,
+      "total": 2644,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2603,
+          "completion": 41,
+          "total": 2644
+        }
+      }
+    },
+    "b65c1a40563f": {
+      "calls": 1,
+      "prompt": 2649,
+      "completion": 28,
+      "total": 2677,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2649,
+          "completion": 28,
+          "total": 2677
+        }
+      }
+    },
+    "6eff1b7d1ac5": {
+      "calls": 1,
+      "prompt": 2682,
+      "completion": 11,
+      "total": 2693,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2682,
+          "completion": 11,
+          "total": 2693
+        }
+      }
+    },
+    "bb16a3dbd9f9": {
+      "calls": 1,
+      "prompt": 2699,
+      "completion": 12,
+      "total": 2711,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2699,
+          "completion": 12,
+          "total": 2711
+        }
+      }
+    },
+    "80fe4746e076": {
+      "calls": 1,
+      "prompt": 2717,
+      "completion": 139,
+      "total": 2856,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2717,
+          "completion": 139,
+          "total": 2856
+        }
+      }
+    },
+    "7d23e2dfb4cb": {
+      "calls": 1,
+      "prompt": 2862,
+      "completion": 50,
+      "total": 2912,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2862,
+          "completion": 50,
+          "total": 2912
+        }
+      }
+    },
+    "ff0eb3e0e0e2": {
+      "calls": 1,
+      "prompt": 2917,
+      "completion": 11,
+      "total": 2928,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2917,
+          "completion": 11,
+          "total": 2928
+        }
+      }
+    },
+    "41fa23eac355": {
+      "calls": 1,
+      "prompt": 2933,
+      "completion": 28,
+      "total": 2961,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2933,
+          "completion": 28,
+          "total": 2961
+        }
+      }
+    },
+    "78b0c120e3b3": {
+      "calls": 1,
+      "prompt": 67,
+      "completion": 18,
+      "total": 85,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 67,
+          "completion": 18,
+          "total": 85
+        }
+      }
+    },
+    "f088245ffa81": {
+      "calls": 1,
+      "prompt": 67,
+      "completion": 22,
+      "total": 89,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 67,
+          "completion": 22,
+          "total": 89
+        }
+      }
+    },
+    "700d4e0c3a1f": {
+      "calls": 1,
+      "prompt": 94,
+      "completion": 74,
+      "total": 168,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 94,
+          "completion": 74,
+          "total": 168
+        }
+      }
+    },
+    "cded245d9ac1": {
+      "calls": 1,
+      "prompt": 175,
+      "completion": 382,
+      "total": 557,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 175,
+          "completion": 382,
+          "total": 557
+        }
+      }
+    },
+    "d5e53b6dd848": {
+      "calls": 2,
+      "prompt": 5120,
+      "completion": 313,
+      "total": 5433,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2501,
+          "completion": 83,
+          "total": 2584
+        },
+        "tool_followup": {
+          "calls": 1,
+          "prompt": 2619,
+          "completion": 230,
+          "total": 2849
+        }
+      }
+    },
+    "64377df78b7d": {
+      "calls": 1,
+      "prompt": 2859,
+      "completion": 51,
+      "total": 2910,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2859,
+          "completion": 51,
+          "total": 2910
+        }
+      }
+    },
+    "f7a7d9bc6a94": {
+      "calls": 2,
+      "prompt": 6397,
+      "completion": 209,
+      "total": 6606,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 2991,
+          "completion": 86,
+          "total": 3077
+        },
+        "tool_followup": {
+          "calls": 1,
+          "prompt": 3406,
+          "completion": 123,
+          "total": 3529
+        }
+      }
+    },
+    "f7b67b21284d": {
+      "calls": 1,
+      "prompt": 3534,
+      "completion": 113,
+      "total": 3647,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 3534,
+          "completion": 113,
+          "total": 3647
+        }
+      }
+    },
+    "1fc02fba319d": {
+      "calls": 1,
+      "prompt": 3652,
+      "completion": 100,
+      "total": 3752,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 3652,
+          "completion": 100,
+          "total": 3752
+        }
+      }
+    },
+    "d75b6a9790ca": {
+      "calls": 1,
+      "prompt": 81,
+      "completion": 22,
+      "total": 103,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 81,
+          "completion": 22,
+          "total": 103
+        }
+      }
+    },
+    "4516ff22d22e": {
+      "calls": 1,
+      "prompt": 82,
+      "completion": 48,
+      "total": 130,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 82,
+          "completion": 48,
+          "total": 130
+        }
+      }
+    },
+    "99476fe05737": {
+      "calls": 1,
+      "prompt": 135,
+      "completion": 59,
+      "total": 194,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 135,
+          "completion": 59,
+          "total": 194
+        }
+      }
+    },
+    "26694976bb3f": {
+      "calls": 1,
+      "prompt": 203,
+      "completion": 134,
+      "total": 337,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 203,
+          "completion": 134,
+          "total": 337
+        }
+      }
+    },
+    "4e23ad50d390": {
+      "calls": 2,
+      "prompt": 604,
+      "completion": 260,
+      "total": 864,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 5,
+          "completion": 0,
+          "total": 5
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 599,
+          "completion": 260,
+          "total": 859
+        }
+      }
+    },
+    "bbf37140b23c": {
+      "calls": 2,
+      "prompt": 880,
+      "completion": 754,
+      "total": 1634,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 10,
+          "completion": 0,
+          "total": 10
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 870,
+          "completion": 754,
+          "total": 1624
+        }
+      }
+    },
+    "ac4fb9bdf4a7": {
+      "calls": 2,
+      "prompt": 1754,
+      "completion": 604,
+      "total": 2358,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "embedding": {
+          "calls": 1,
+          "prompt": 10,
+          "completion": 0,
+          "total": 10
+        },
+        "main_chat": {
+          "calls": 1,
+          "prompt": 1744,
+          "completion": 604,
+          "total": 2348
+        }
+      }
+    },
+    "5e17a8bf65eb": {
+      "calls": 1,
+      "prompt": 3828,
+      "completion": 502,
+      "total": 4330,
+      "estimated_calls": 0,
+      "estimated_total": 0,
+      "by_stage": {
+        "main_chat": {
+          "calls": 1,
+          "prompt": 3828,
+          "completion": 502,
+          "total": 4330
+        }
+      }
+    }
+  },
+  "by_provider": {
+    "deepseek": {
+      "calls": 13,
+      "prompt": 25874,
+      "completion": 1806,
+      "total": 27680
+    },
+    "siliconflow": {
+      "calls": 6,
+      "prompt": 3633,
+      "completion": 1859,
+      "total": 5492
     }
   }
 }

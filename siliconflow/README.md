@@ -1,49 +1,43 @@
-# 🤖 SiliconFlow AI 编排器
+# SiliconFlow 模块说明
 
-此模块集成了 SiliconFlow 的大模型能力，允许 AI 助手通过本地技能脚本调用天气、系统信息、时钟、文件编辑、终端控制等工具。
+`siliconflow/` 是本仓库的命令行编排模块，提供模型调用、技能执行、对话与记忆数据管理。
 
-## 目录结构
+## 目录
 
-- **[SKILL.md](SKILL.md)**: AI 指令文档（含完整工具列表）。
-- **[scripts/chat.py](scripts/chat.py)**: 主编排脚本（Python）。
-- **[.env](.env)**: 用于存储 API Key（请勿提交到 Git）。
-- **[requirements.txt](requirements.txt)**: Python 依赖列表。
+- [SKILL.md](./SKILL.md)：系统提示词与工具说明。
+- [scripts/chat.py](./scripts/chat.py)：命令行聊天入口。
+- [requirements.txt](./requirements.txt)：该模块基础依赖。
+- `config/.env`：环境变量文件（需自行创建，勿提交）。
+- `data/`：对话、记忆、token 统计等持久化数据。
 
-## 如何使用
+## 快速开始
 
-1. **准备环境**：确保已安装 Python 3。
-2. **安装依赖**：
+1. 安装依赖
 
-   ```bash
-   pip install -r siliconflow/requirements.txt
-   ```
+```bash
+pip install -r siliconflow/requirements.txt
+pip install openai python-dotenv
+```
 
-3. **配置 API Key**：在 `siliconflow/.env` 中填写：
+2. 创建环境变量文件 `siliconflow/config/.env`
 
-   ```
-   SILICONFLOW_API_KEY=your_key_here
-   ```
+```bash
+SILICONFLOW_API_KEY=your_key_here
+SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
 
-4. **启动对话**：
+# 可选
+DEEPSEEK_API_KEY=your_deepseek_key
+DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+```
 
-   ```bash
-   python3 siliconflow/scripts/chat.py
-   ```
+3. 启动 CLI 对话
 
-5. **切换模型**：对话中输入 `/model`，支持以下模型：
-   - `1` Qwen/Qwen3.5-27B
-   - `2` deepseek-ai/DeepSeek-V3.2
-   - `3` Pro/zai-org/GLM-4.7
+```bash
+python3 siliconflow/scripts/chat.py
+```
 
-## 已注册技能
+## 常见说明
 
-| 工具名 | 说明 | 限制范围 |
-|--------|------|----------|
-| `get_weather` | 查询城市实时天气 | 无 |
-| `get_current_time` | 获取当前时间与星期 | 无 |
-| `get_system_info` | 查看 CPU、内存、磁盘状态 | 无 |
-| `file_editor` | 列出、读取、写入、追加、替换文件 | `Skills探索/` |
-| `run_terminal` | 执行白名单终端命令（静默） | `Skills探索/test/` |
-| `open_terminal` | 打开 Terminal.app 可见窗口执行命令 | 无 |
-
----
+- `scripts/chat.py` 使用同一套技能目录（`skills/`）和数据目录（`siliconflow/data/`）。
+- 模型列表默认来自 `webapp/backend/models.json`。
+- 如果 API Key 未配置，启动后调用模型会失败。
