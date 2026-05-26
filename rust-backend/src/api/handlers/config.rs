@@ -57,9 +57,7 @@ pub async fn save_runtime_settings(
         .map_err(internal_error)
 }
 
-pub async fn get_providers_catalog(
-    State(state): State<AppState>,
-) -> Json<Vec<serde_json::Value>> {
+pub async fn get_providers_catalog(State(state): State<AppState>) -> Json<Vec<serde_json::Value>> {
     Json(state.config_service.providers_catalog())
 }
 
@@ -86,7 +84,10 @@ pub async fn get_auth_profiles(
 pub async fn get_runtime_health(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let mut health = state.config_service.runtime_health().map_err(internal_error)?;
+    let mut health = state
+        .config_service
+        .runtime_health()
+        .map_err(internal_error)?;
     let active_runs: Vec<serde_json::Value> = state
         .chat_service
         .active_runs()
@@ -99,7 +100,10 @@ pub async fn get_runtime_health(
         })
         .collect();
     if let Some(obj) = health.as_object_mut() {
-        obj.insert("active_runs".to_string(), serde_json::Value::Array(active_runs));
+        obj.insert(
+            "active_runs".to_string(),
+            serde_json::Value::Array(active_runs),
+        );
     }
     Ok(Json(health))
 }

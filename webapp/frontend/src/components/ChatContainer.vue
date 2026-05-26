@@ -122,7 +122,7 @@ watch(() => streamingContent.value, scrollToBottom)
 
     <div v-if="messages.length === 0" style="display: flex; flex: 1; align-items: center; justify-content: center; color: var(--text-secondary); flex-direction: column; opacity: 0.5;">
       <h2 style="font-family: var(--font-display); margin-bottom: 0.5rem;">How can I help you?</h2>
-      <p style="font-size: 0.9rem;">Start a new conversation or select a skill.</p>
+      <p style="font-size: var(--font-sm);">Start a new conversation or select a skill.</p>
     </div>
 
     <template v-for="(msg, index) in messages" :key="index">
@@ -204,7 +204,7 @@ watch(() => streamingContent.value, scrollToBottom)
   border-radius: 0.5rem;
   padding: 0.4rem 0.75rem;
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: var(--font-xs);
   cursor: pointer;
   width: 100%;
   text-align: left;
@@ -220,7 +220,7 @@ watch(() => streamingContent.value, scrollToBottom)
 .tool-label { flex: 1; }
 
 .msg-tokens {
-  font-size: 10px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   opacity: 0.6;
   margin-left: 4px;
@@ -229,7 +229,7 @@ watch(() => streamingContent.value, scrollToBottom)
 
 .tool-chevron {
   transition: transform 0.2s ease;
-  font-size: 1rem;
+  font-size: var(--font-md);
 }
 .tool-chevron.expanded {
   transform: rotate(180deg);
@@ -247,7 +247,7 @@ watch(() => streamingContent.value, scrollToBottom)
 .tool-content pre {
   padding: 0.75rem 1rem;
   font-family: 'Fira Code', monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
@@ -265,7 +265,7 @@ watch(() => streamingContent.value, scrollToBottom)
   border-radius: 0.75rem;
   background: rgba(20, 24, 34, 0.55);
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: var(--font-xs);
 }
 
 .voice-runtime-bar span {
@@ -288,7 +288,7 @@ watch(() => streamingContent.value, scrollToBottom)
 /* Model label */
 .model-label {
   align-self: flex-start;
-  font-size: 10px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   opacity: 0.45;
   margin-top: -0.35rem;
@@ -305,7 +305,7 @@ watch(() => streamingContent.value, scrollToBottom)
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   font-family: 'Fira Code', monospace;
   background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
@@ -321,7 +321,7 @@ watch(() => streamingContent.value, scrollToBottom)
   border-radius: 8px;
   padding: 7px 10px;
   margin-bottom: 10px;
-  font-size: 11px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   font-family: 'Fira Code', monospace;
   display: flex;
@@ -340,7 +340,7 @@ watch(() => streamingContent.value, scrollToBottom)
   padding: 0;
   cursor: pointer;
   font-family: 'Fira Code', monospace;
-  font-size: 11px;
+  font-size: var(--font-xs);
 }
 
 .process-toggle {

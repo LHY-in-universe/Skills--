@@ -18,7 +18,7 @@ pub struct ModelRuntime {
 /// 1. 当前激活模型（如果和已选模型不同）
 /// 2. 其余已配置模型
 ///
-/// 会自动跳过无可用 API Key 的 provider。
+/// 会自动跳过需要 API Key 但当前未配置密钥的 provider。
 pub fn build_fallback_chain(
     auth_resolver: &dyn AuthProfileResolver,
     snapshot: &RuntimeSnapshot,
@@ -35,8 +35,14 @@ pub fn build_fallback_chain(
             continue;
         }
         if let Some(spec) = snapshot.models.get(&name) {
+            let requires_key = snapshot
+                .providers
+                .get(&spec.provider)
+                .map(|p| !p.required_env_keys.is_empty())
+                .unwrap_or(true);
             let api_key = match auth_resolver.resolve_api_key(&spec.provider) {
                 Some(v) => v,
+                None if !requires_key => String::new(),
                 None => continue,
             };
             let api_url = spec
@@ -66,6 +72,20 @@ pub fn classify_upstream_error(err_msg: &str) -> &'static str {
         || lower.contains("remoteprotocolerror");
     if is_timeout || is_connection {
         return "network_timeout";
+    }
+    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid api key")
+    {
+        return "auth_error";
+    }
+    if lower.contains("403") || lower.contains("forbidden") {
+        return "permission_error";
+    }
+    if lower.contains("429") || lower.contains("rate limit") || lower.contains("too many requests")
+    {
+        return "rate_limit";
+    }
+    if lower.contains("400") || lower.contains("bad request") {
+        return "bad_request";
     }
     if lower.contains("model does not exist")
         || lower.contains("model not exist")

@@ -15,6 +15,23 @@ pub struct SkillToggleRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SkillCatalogQuery {
+    pub limit: Option<usize>,
+    pub sort: Option<String>,
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SkillInstallRequest {
+    pub slug: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SkillUninstallRequest {
+    pub slug: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct LimitQuery {
     pub limit: Option<usize>,
 }
@@ -117,5 +134,91 @@ pub fn map_config_error(err: anyhow::Error) -> (StatusCode, Json<Value>) {
             })),
         );
     }
+    internal_error(err)
+}
+
+pub fn map_skill_error(err: anyhow::Error) -> (StatusCode, Json<Value>) {
+    let message = err.to_string();
+
+    if message.contains("clawhub_not_installed") {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "code": "clawhub_not_installed",
+                "message": "未检测到 clawhub CLI，请先在本机安装 clawhub"
+            })),
+        );
+    }
+
+    if message.contains("invalid_skill_slug") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "code": "invalid_skill_slug",
+                "message": "skill 标识不能为空"
+            })),
+        );
+    }
+
+    if message.contains("invalid_skill_catalog_sort") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "code": "invalid_skill_catalog_sort",
+                "message": "catalog 排序参数无效"
+            })),
+        );
+    }
+
+    if message.contains("skill_not_runnable") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "code": "skill_not_runnable",
+                "message": "该 skill 已安装，但当前后端无法作为可执行工具运行"
+            })),
+        );
+    }
+
+    if message.contains("invalid_catalog_response") {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "code": "invalid_catalog_response",
+                "message": "clawhub 返回的 catalog 数据无法解析"
+            })),
+        );
+    }
+
+    if message.contains("skill_install_failed") {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "code": "skill_install_failed",
+                "message": message
+            })),
+        );
+    }
+
+    if message.contains("skill_uninstall_failed") {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "code": "skill_uninstall_failed",
+                "message": message
+            })),
+        );
+    }
+
+    if message.contains("clawhub_command_failed") || message.contains("clawhub_check_failed") {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "code": "clawhub_command_failed",
+                "message": message
+            })),
+        );
+    }
+
     internal_error(err)
 }

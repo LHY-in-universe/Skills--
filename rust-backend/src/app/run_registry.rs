@@ -107,7 +107,11 @@ impl RunRegistry {
 
     pub fn take_pending(&self, conv_id: &str) -> Option<PendingPermission> {
         let handle = self.handle(conv_id);
-        let taken = handle.pending_permission.lock().ok().and_then(|mut g| g.take());
+        let taken = handle
+            .pending_permission
+            .lock()
+            .ok()
+            .and_then(|mut g| g.take());
         if taken.is_some() {
             handle.set_status(RunStatus::Running);
         }
@@ -117,11 +121,7 @@ impl RunRegistry {
     /// 读取单个会话的状态快照。
     pub fn status_snapshot(&self, conv_id: &str) -> RunStatus {
         let handle = self.handle(conv_id);
-        handle
-            .status
-            .lock()
-            .map(|g| *g)
-            .unwrap_or(RunStatus::Idle)
+        handle.status.lock().map(|g| *g).unwrap_or(RunStatus::Idle)
     }
 
     /// 列出所有「非 Idle」会话的 `(conv_id, status)`。

@@ -23,7 +23,8 @@ impl ConfigService {
     }
 
     pub fn allow_tool_always(&self, tool_name: &str) -> anyhow::Result<Value> {
-        self.permission_store().upsert(tool_name, true, "user_grant")?;
+        self.permission_store()
+            .upsert(tool_name, true, "user_grant")?;
         self.permission_settings()
     }
 

@@ -80,7 +80,7 @@ impl ChatService {
     /// 准备单次聊天请求。
     ///
     /// 这里会先将用户消息写入会话，再生成上游兼容 OpenAI Chat Completions 的请求体。
-    pub fn prepare_chat(
+    pub async fn prepare_chat(
         &self,
         user_input: &str,
         conv_id: Option<&str>,
@@ -91,25 +91,37 @@ impl ChatService {
             .current_model()
             .ok_or_else(|| anyhow!("未配置可用模型"))?;
         let (tier, routed_model_name, routed_model) =
-            self.select_model_for_query(user_input, &snapshot, &current_model_name);
+            self.select_model_for_query(user_input, &snapshot, &current_model_name).await;
         let selected_model_name = routed_model_name
             .clone()
             .unwrap_or_else(|| current_model_name.clone());
         let selected_model = routed_model.as_ref().unwrap_or(current_model);
+        let selected_provider = snapshot.providers.get(&selected_model.provider);
+        let selected_requires_key = selected_provider
+            .map(|p| !p.required_env_keys.is_empty())
+            .unwrap_or(true);
         let api_key = self
             .auth_resolver
             .resolve_api_key(&selected_model.provider)
+            .or_else(|| (!selected_requires_key).then(String::new))
             .ok_or_else(|| anyhow!("当前模型缺少 API Key"))?;
         let api_url = selected_model.api_url_override.clone().unwrap_or_else(|| {
             self.auth_resolver
                 .default_api_url(Some(&selected_model.provider))
         });
+        let current_provider = snapshot.providers.get(&current_model.provider);
+        let current_requires_key = current_provider
+            .map(|p| !p.required_env_keys.is_empty())
+            .unwrap_or(true);
         let _ = self
             .auth_resolver
             .resolve_api_key(&current_model.provider)
+            .or_else(|| (!current_requires_key).then(String::new))
             .ok_or_else(|| anyhow!("当前默认模型缺少 API Key"))?;
 
-        let conversation_id = self.conversation_service.resolve_or_create_active(conv_id)?;
+        let conversation_id = self
+            .conversation_service
+            .resolve_or_create_active(conv_id)?;
         self.reset_abort(&conversation_id);
 
         self.conversation_service.append_message(
@@ -140,6 +152,41 @@ impl ChatService {
                 msg
             })
             .collect::<Vec<_>>();
+
+        // 上下文压缩：历史过长时用 summary_model 总结旧消息
+        if let Some(summary) = self.compress_conversation(&mut messages).await {
+            messages.insert(
+                0,
+                json!({"role": "system", "content": format!("[对话历史摘要]\n{}", summary)}),
+            );
+        }
+
+        let memory = self
+            .config_service
+            .read_json_file("siliconflow/data/memory.json", json!({}))
+            .unwrap_or_else(|_| json!({}));
+        if let Some(obj) = memory.as_object() {
+            if !obj.is_empty() {
+                let lines = obj
+                    .iter()
+                    .map(|(k, v)| {
+                        let value = v
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| v.to_string());
+                        format!("- {}: {}", k, value)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                messages.insert(
+                    0,
+                    json!({
+                        "role": "system",
+                        "content": format!("以下是长期记忆，仅在与当前请求相关时使用：\n{}", lines)
+                    }),
+                );
+            }
+        }
 
         let plan_enabled = self.should_plan(user_input, &tier);
         let plan_steps = if plan_enabled {
@@ -190,6 +237,9 @@ impl ChatService {
                 .self_correction_max_retries
                 .max(0) as usize,
             fallback_chain,
+            routed_tool_names: None,
+            tool_call_mode: ToolCallMode::Function,
+            prompt_fallback_attempted: false,
         })
     }
 
@@ -199,9 +249,10 @@ impl ChatService {
     /// 包裹，文本增量位于 `choices[0].delta.content`。
     pub async fn send_stream_request(
         &self,
-        prepared: &PreparedChatRun,
+        prepared: &mut PreparedChatRun,
         messages: &[Value],
     ) -> anyhow::Result<Response> {
+        let request_started = std::time::Instant::now();
         let enabled_tool_names = self
             .config_service
             .skills_view()
@@ -218,21 +269,73 @@ impl ChatService {
                     .map(|s| s.to_string())
             })
             .collect::<Vec<_>>();
-        let tools = self
-            .tool_service
-            .tool_schemas(&enabled_tool_names)
-            .unwrap_or_default();
+        let routed_tool_names = if let Some(names) = &prepared.routed_tool_names {
+            names.clone()
+        } else if prepared.tier == "easy" {
+            Vec::new()
+        } else {
+            enabled_tool_names.clone()
+        };
+        prepared.routed_tool_names = Some(routed_tool_names.clone());
+        let tools = if prepared.tool_call_mode == ToolCallMode::Function {
+            self.tool_service
+                .tool_schemas(&routed_tool_names)
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let react_prompt = if prepared.tool_call_mode == ToolCallMode::Prompt {
+            self.tool_service
+                .prompt_injection_system_prompt(&routed_tool_names)
+                .unwrap_or(None)
+        } else {
+            None
+        };
+        tracing::debug!(
+            model_name = %prepared.model_name,
+            model_id = %prepared.model_id,
+            provider = %prepared.provider,
+            route = %prepared.route,
+            tier = %prepared.tier,
+            tool_call_mode = %match prepared.tool_call_mode { ToolCallMode::Function => "function", ToolCallMode::Prompt => "prompt" },
+            skills = %routed_tool_names.join(","),
+            skill_count = routed_tool_names.len(),
+            elapsed_ms = request_started.elapsed().as_millis() as i64,
+            "dispatching upstream chat request"
+        );
+        let mut outbound_messages = messages.to_vec();
+        if let Some(prompt) = react_prompt {
+            outbound_messages.insert(
+                0,
+                json!({
+                    "role": "system",
+                    "content": prompt
+                }),
+            );
+        }
         let payload =
             self.provider_driver
-                .build_payload(&prepared.model_id, messages, &tools);
-        let resp = self
-            .http_client
-            .post(&prepared.api_url)
-            .bearer_auth(&prepared.api_key)
+                .build_payload(&prepared.model_id, &outbound_messages, &tools);
+        let mut request = self.http_client.post(&prepared.api_url);
+        if !prepared.api_key.trim().is_empty() {
+            request = request.bearer_auth(&prepared.api_key);
+        }
+        let resp = request
             .json(&payload)
             .send()
             .await
             .with_context(|| format!("请求上游模型失败: {}", prepared.api_url))?;
+
+        tracing::debug!(
+            model_name = %prepared.model_name,
+            model_id = %prepared.model_id,
+            provider = %prepared.provider,
+            route = %prepared.route,
+            tier = %prepared.tier,
+            status = %resp.status(),
+            elapsed_ms = request_started.elapsed().as_millis() as i64,
+            "upstream chat response headers received"
+        );
 
         if !resp.status().is_success() {
             let status = resp.status();
@@ -347,17 +450,23 @@ impl ChatService {
             Ok(text) => ("ok", text.clone()),
             Err(err) => ("error", err.to_string()),
         };
-        let _ = self
-            .config_service
-            .execution_store()
-            .insert(crate::infra::execution_store::ExecutionEventInput {
+        tracing::debug!(
+            conversation_id = conv_id.unwrap_or(""),
+            tool_name = %name,
+            status = %status,
+            elapsed_ms = elapsed_ms,
+            "tool execution finished"
+        );
+        let _ = self.config_service.execution_store().insert(
+            crate::infra::execution_store::ExecutionEventInput {
                 conv_id,
                 tool_name: name,
                 status,
                 request: Some(args),
                 response: Some(response_text.as_str()),
                 elapsed_ms: Some(elapsed_ms),
-            });
+            },
+        );
         result
     }
 
@@ -436,11 +545,311 @@ impl ChatService {
     /// 轻量版路由决策。
     ///
     /// 当前先不迁移 Python 的本地 Ollama 分类器，只保留稳定且容易解释的规则：
+    /// 上下文压缩：当消息数超过阈值时，用 summary_model 将旧消息压缩为摘要，
+    /// 保留最近 6 条消息不变。返回压缩后的摘要文本，或 None 表示无需压缩。
+    async fn compress_conversation(&self, messages: &mut Vec<Value>) -> Option<String> {
+        const COMPRESS_THRESHOLD: usize = 20;
+        const KEEP_RECENT: usize = 6;
+        if messages.len() <= COMPRESS_THRESHOLD {
+            return None;
+        }
+        let routing = self
+            .config_service
+            .routing_config()
+            .unwrap_or_else(|_| json!({}));
+        let summary_ref = routing
+            .get("summary_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if summary_ref.is_empty() {
+            return None;
+        }
+        let snapshot = self.config_service.snapshot();
+        let (_, summary_spec) = self.resolve_model_ref(&snapshot, &summary_ref)?;
+        let summary_provider = snapshot.providers.get(&summary_spec.provider);
+        let summary_requires_key = summary_provider
+            .map(|p| !p.required_env_keys.is_empty())
+            .unwrap_or(true);
+        let api_key = self
+            .auth_resolver
+            .resolve_api_key(&summary_spec.provider)
+            .or_else(|| (!summary_requires_key).then(String::new))?;
+        let api_url = summary_spec
+            .api_url_override
+            .clone()
+            .unwrap_or_else(|| self.auth_resolver.default_api_url(Some(&summary_spec.provider)));
+        let split_at = messages.len().saturating_sub(KEEP_RECENT);
+        let old: Vec<_> = messages.drain(..split_at).collect();
+        let prompt_lines: Vec<String> = old
+            .iter()
+            .filter_map(|m| {
+                let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("?");
+                let content = m
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if content.is_empty() {
+                    None
+                } else {
+                    Some(format!("[{}] {}", role, content))
+                }
+            })
+            .collect();
+        if prompt_lines.is_empty() {
+            return None;
+        }
+        let compress_prompt = format!(
+            "请将以下对话历史压缩为一份简洁的摘要（中文，不超过 500 字），保留关键信息和决策：\n\n{}",
+            prompt_lines.join("\n")
+        );
+        let compress_messages = vec![json!({"role": "user", "content": compress_prompt})];
+        let mut payload = self.provider_driver.build_payload(
+            &summary_spec.id,
+            &compress_messages,
+            &[],
+        );
+        payload["stream"] = json!(false);
+        if let Some(obj) = payload.as_object_mut() {
+            obj.remove("stream_options");
+        }
+        let mut request = self.http_client.post(&api_url);
+        if !api_key.trim().is_empty() {
+            request = request.bearer_auth(&api_key);
+        }
+        let result: anyhow::Result<String> = async {
+            let resp = request.json(&payload).send().await?;
+            if !resp.status().is_success() {
+                return Err(anyhow!("摘要模型返回 {}", resp.status()));
+            }
+            let body: Value = resp.json().await?;
+            let summary = body
+                .get("choices")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.get("content"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            Ok(summary)
+        }
+        .await;
+        match result {
+            Ok(s) if !s.is_empty() => {
+                let input_chars: usize = prompt_lines.iter().map(|l| l.chars().count()).sum();
+                tracing::info!(
+                    compressed_messages = old.len(),
+                    kept_messages = messages.len(),
+                    input_chars = input_chars,
+                    summary_chars = s.chars().count(),
+                    compression_ratio = format!("{:.1}%", 100.0 * s.chars().count() as f64 / input_chars.max(1) as f64),
+                    summary = %s,
+                    "context compressed"
+                );
+                Some(s)
+            }
+            _ => {
+                // 压缩失败时把旧消息放回去，不丢数据
+                for m in old.into_iter().rev() {
+                    messages.insert(0, m);
+                }
+                None
+            }
+        }
+    }
+
+    /// 用 router_model 做一次非流式调用，根据 tool_calls 判断 E/M/H 难度。
+    ///
+    /// 使用 functiongemma 训练时认识的标准工具定义做分类，而非 Rust
+    /// 后端的复杂技能 schema。分类结果只决定走哪个 tier 的模型。
+    ///
+    /// - 无 tool_calls → E 路径 ("easy")
+    /// - 少量 tool_calls → M 路径 ("medium")
+    /// - 大量 tool_calls → H 路径 ("hard")
+    async fn classify_with_router(
+        &self,
+        user_input: &str,
+        snapshot: &crate::domain::models::RuntimeSnapshot,
+        router_model_ref: &str,
+    ) -> anyhow::Result<String> {
+        let (router_name, router_spec) = self
+            .resolve_model_ref(snapshot, router_model_ref)
+            .ok_or_else(|| anyhow!("路由模型未找到: {}", router_model_ref))?;
+        let router_provider = snapshot.providers.get(&router_spec.provider);
+        let router_requires_key = router_provider
+            .map(|p| !p.required_env_keys.is_empty())
+            .unwrap_or(true);
+        let router_api_key = self
+            .auth_resolver
+            .resolve_api_key(&router_spec.provider)
+            .or_else(|| (!router_requires_key).then(String::new))
+            .ok_or_else(|| anyhow!("路由模型缺少 API Key"))?;
+        let router_api_url = router_spec
+            .api_url_override
+            .clone()
+            .unwrap_or_else(|| self.auth_resolver.default_api_url(Some(&router_spec.provider)));
+        let tools = self.classifier_tools();
+        let messages = vec![json!({"role": "user", "content": user_input})];
+        let mut payload = self
+            .provider_driver
+            .build_payload(&router_spec.id, &messages, &tools);
+        payload["stream"] = json!(false);
+        if let Some(obj) = payload.as_object_mut() {
+            obj.remove("stream_options");
+        }
+        let mut request = self.http_client.post(&router_api_url);
+        if !router_api_key.trim().is_empty() {
+            request = request.bearer_auth(&router_api_key);
+        }
+        let resp = request
+            .json(&payload)
+            .send()
+            .await
+            .with_context(|| format!("路由模型请求失败: {}", router_api_url))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("路由模型返回错误 {}: {}", status, body));
+        }
+        let body: Value = resp.json().await.context("解析路由模型响应失败")?;
+        let tc_count = body
+            .get("choices")
+            .and_then(|v| v.get(0))
+            .and_then(|v| v.get("message"))
+            .and_then(|v| v.get("tool_calls"))
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        tracing::debug!(
+            router_model = %router_name,
+            tool_calls = tc_count,
+            "router E/M/H classification"
+        );
+        if tc_count == 0 {
+            Ok("easy".to_string())
+        } else if tc_count <= 2 {
+            Ok("medium".to_string())
+        } else {
+            Ok("hard".to_string())
+        }
+    }
+
+    /// functiongemma 训练时认识的标准工具定义，用于 E/M/H 分类。
+    fn classifier_tools(&self) -> Vec<Value> {
+        vec![
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "查询指定城市的实时天气，返回温度、湿度、天气状况和风力",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string", "description": "城市中文名称，例如 北京、上海"}
+                        },
+                        "required": ["city"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "calculate",
+                    "description": "执行数学运算。支持加减乘除幂取模",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "number", "description": "第一个操作数"},
+                            "b": {"type": "number", "description": "第二个操作数"},
+                            "op": {"type": "string", "enum": ["add", "subtract", "multiply", "divide", "power", "modulo"], "description": "运算类型"}
+                        },
+                        "required": ["a", "b", "op"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "search_web",
+                    "description": "搜索互联网信息",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "搜索关键词"},
+                            "max_results": {"type": "integer", "description": "最大返回条数，默认 5"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "get_current_time",
+                    "description": "获取当前日期和时间，包括星期几和时区信息",
+                    "parameters": {"type": "object", "properties": {}}
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "translate",
+                    "description": "将文本翻译为目标语言",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string", "description": "待翻译文本"},
+                            "target_language": {"type": "string", "description": "目标语言，例如 en、zh、ja、fr、de，默认 en"}
+                        },
+                        "required": ["text", "target_language"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "send_email",
+                    "description": "发送电子邮件",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "to": {"type": "string", "description": "收件人邮箱"},
+                            "subject": {"type": "string", "description": "邮件主题"},
+                            "body": {"type": "string", "description": "邮件正文"}
+                        },
+                        "required": ["to", "subject", "body"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "query_database",
+                    "description": "在内部数据库中执行 SQL 查询（仅限只读 SELECT）",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "sql": {"type": "string", "description": "SELECT 查询语句"}
+                        },
+                        "required": ["sql"]
+                    }
+                }
+            }),
+        ]
+    }
+
+    /// 根据路由配置和查询内容选择模型。
+    ///
+    /// 当启用路由且 router_model 不为空时，用 classify_with_router 做
+    /// E/M/H 分类（代替关键词匹配）。关闭路由时回退到默认行为。
+    ///
     /// - 路由关闭：直接使用当前模型
-    /// - 短且非技术问题：easy
-    /// - 明显复杂/工程类请求：hard
-    /// - 其余默认：medium
-    fn select_model_for_query(
+    /// - E 路径 (无 tool_calls): easy 模型
+    /// - M 路径 (少量 tool_calls): medium 模型
+    /// - H 路径 (大量 tool_calls): hard 模型
+    async fn select_model_for_query(
         &self,
         user_input: &str,
         snapshot: &crate::domain::models::RuntimeSnapshot,
@@ -458,7 +867,25 @@ impl ChatService {
             return ("".to_string(), None, None);
         }
 
-        let tier = self.classify_tier(user_input);
+        let router_ref = routing
+            .get("router_model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let tier = if router_ref.is_empty() {
+            self.classify_tier(user_input)
+        } else {
+            self.classify_with_router(user_input, snapshot, &router_ref)
+                .await
+                .unwrap_or_else(|err| {
+                    tracing::warn!(
+                        error = %err,
+                        "router classification failed, falling back to keyword tier"
+                    );
+                    self.classify_tier(user_input)
+                })
+        };
         let model_ref = routing
             .get("tiers")
             .and_then(|v| v.get(&tier))
@@ -495,13 +922,50 @@ impl ChatService {
     fn classify_tier(&self, user_input: &str) -> String {
         let q = user_input.trim().to_lowercase();
         let tech_keywords = [
-            "代码", "算法", "设计", "实现", "分析", "证明", "调试", "函数", "架构", "系统",
-            "数据库", "网络", "部署", "模拟", "计算", "程序", "项目", "写一个", "实现一个",
-            "debug", "error", "bug", "api", "code", "script", "python", "java", "rust",
+            "代码",
+            "算法",
+            "设计",
+            "实现",
+            "分析",
+            "证明",
+            "调试",
+            "函数",
+            "架构",
+            "系统",
+            "数据库",
+            "网络",
+            "部署",
+            "模拟",
+            "计算",
+            "程序",
+            "项目",
+            "写一个",
+            "实现一个",
+            "debug",
+            "error",
+            "bug",
+            "api",
+            "code",
+            "script",
+            "python",
+            "java",
+            "rust",
         ];
         let hard_keywords = [
-            "重构", "架构", "系统设计", "完整项目", "规划", "plan", "implement the plan",
-            "多步骤", "大改", "替代", "迁移", "agent", "planner", "failover",
+            "重构",
+            "架构",
+            "系统设计",
+            "完整项目",
+            "规划",
+            "plan",
+            "implement the plan",
+            "多步骤",
+            "大改",
+            "替代",
+            "迁移",
+            "agent",
+            "planner",
+            "failover",
         ];
         let short_non_tech =
             q.chars().count() <= 20 && !tech_keywords.iter().any(|kw| q.contains(kw));
@@ -563,4 +1027,13 @@ pub struct PreparedChatRun {
     pub plan_steps: Vec<String>,
     pub audit_retry_cap: usize,
     pub fallback_chain: Vec<ModelRuntime>,
+    pub routed_tool_names: Option<Vec<String>>,
+    pub tool_call_mode: ToolCallMode,
+    pub prompt_fallback_attempted: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolCallMode {
+    Function,
+    Prompt,
 }

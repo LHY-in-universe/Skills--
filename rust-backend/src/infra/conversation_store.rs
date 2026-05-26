@@ -26,7 +26,10 @@ impl ConversationStore {
     pub fn bootstrap(project_root: PathBuf) -> anyhow::Result<Self> {
         let db_path = project_root.join("siliconflow/data/runtime.db");
         let legacy_path = project_root.join("siliconflow/data/conversations.json");
-        let store = Self { db_path, legacy_path };
+        let store = Self {
+            db_path,
+            legacy_path,
+        };
         store.init_schema()?;
         store.import_legacy_if_needed()?;
         Ok(store)
@@ -69,28 +72,47 @@ impl ConversationStore {
 
     fn import_legacy_if_needed(&self) -> anyhow::Result<()> {
         let conn = self.connect()?;
-        let existing_count: i64 = conn.query_row(
-            "SELECT COUNT(1) FROM conversations",
-            [],
-            |row| row.get(0),
-        )?;
+        let existing_count: i64 =
+            conn.query_row("SELECT COUNT(1) FROM conversations", [], |row| row.get(0))?;
         if existing_count > 0 || !self.legacy_path.exists() {
             return Ok(());
         }
 
         let text = fs::read_to_string(&self.legacy_path)
             .with_context(|| format!("读取旧会话文件失败: {}", self.legacy_path.display()))?;
-        let raw: Value = serde_json::from_str(&text)?;
-        let active_id = raw.get("active_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let map = raw
-            .get("conversations")
-            .and_then(|v| v.as_object())
-            .ok_or_else(|| anyhow!("旧会话文件格式无效：缺少 conversations 对象"))?;
+        let raw: Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::info!("旧会话文件格式无法解析，跳过导入");
+                return Ok(());
+            }
+        };
+        let active_id = raw
+            .get("active_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let map = match raw.get("conversations").and_then(|v| v.as_object()) {
+            Some(m) => m,
+            None => {
+                tracing::info!("旧会话文件缺少 conversations 字段，跳过导入");
+                return Ok(());
+            }
+        };
 
         for (conv_id, item) in map {
-            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("新对话");
-            let created_at = item.get("created_at").and_then(|v| v.as_f64()).unwrap_or_else(now_ts);
-            let model = item.get("model").and_then(|v| v.as_str()).unwrap_or_default();
+            let name = item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("新对话");
+            let created_at = item
+                .get("created_at")
+                .and_then(|v| v.as_f64())
+                .unwrap_or_else(now_ts);
+            let model = item
+                .get("model")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
             let is_active = if conv_id == &active_id { 1 } else { 0 };
 
             conn.execute(
@@ -101,7 +123,10 @@ impl ConversationStore {
             if let Some(messages) = item.get("messages").and_then(|v| v.as_array()) {
                 for (idx, msg) in messages.iter().enumerate() {
                     let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or_default();
-                    let content = msg.get("content").and_then(|v| v.as_str()).unwrap_or_default();
+                    let content = msg
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default();
                     let mut cloned = msg.clone();
                     if let Some(obj) = cloned.as_object_mut() {
                         obj.remove("role");
@@ -273,7 +298,8 @@ impl ConversationStore {
         )?;
         let rows = stmt.query_map(params![target_id], |row| {
             let extra_json: String = row.get(2)?;
-            let extra = serde_json::from_str(&extra_json).unwrap_or(Value::Object(Default::default()));
+            let extra =
+                serde_json::from_str(&extra_json).unwrap_or(Value::Object(Default::default()));
             Ok(ConversationMessage {
                 role: row.get(0)?,
                 content: row.get(1)?,
@@ -293,7 +319,8 @@ impl ConversationStore {
 
     pub fn resolve_or_create_active(&self, conv_id: Option<&str>) -> anyhow::Result<String> {
         let conn = self.connect()?;
-        if let Some(id) = conv_id {
+        // 空字符串视为未指定
+        if let Some(id) = conv_id.filter(|s| !s.is_empty()) {
             let exists: Option<String> = conn
                 .query_row(
                     "SELECT id FROM conversations WHERE id = ?1",
@@ -323,7 +350,11 @@ impl ConversationStore {
         Ok(created.id)
     }
 
-    pub fn append_message(&self, conv_id: &str, message: &ConversationMessage) -> anyhow::Result<()> {
+    pub fn append_message(
+        &self,
+        conv_id: &str,
+        message: &ConversationMessage,
+    ) -> anyhow::Result<()> {
         let conn = self.connect()?;
         let seq: i64 = conn.query_row(
             "SELECT COALESCE(MAX(seq), -1) + 1 FROM conversation_messages WHERE conversation_id = ?1",
@@ -367,7 +398,13 @@ fn generate_short_id() -> String {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let hex = format!("{:x}", nanos);
-    hex.chars().rev().take(8).collect::<String>().chars().rev().collect()
+    hex.chars()
+        .rev()
+        .take(8)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
 }
 
 fn current_default_model() -> String {

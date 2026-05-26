@@ -1,4 +1,6 @@
-use crate::domain::models::{ModelCapabilities, ModelSpec, ProviderSpec, RuntimeSettings, RuntimeSnapshot};
+use crate::domain::models::{
+    ModelCapabilities, ModelSpec, ProviderSpec, RuntimeSettings, RuntimeSnapshot,
+};
 use anyhow::Context;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -75,9 +77,18 @@ impl ConfigLoader {
                             .map(|s| s.to_string());
 
                         let capabilities = obj.get("capabilities").cloned().unwrap_or(Value::Null);
-                        let chat = capabilities.get("chat").and_then(|v| v.as_bool()).unwrap_or(true);
-                        let vision = capabilities.get("vision").and_then(|v| v.as_bool()).unwrap_or(false);
-                        let tools = capabilities.get("tools").and_then(|v| v.as_bool()).unwrap_or(true);
+                        let chat = capabilities
+                            .get("chat")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true);
+                        let vision = capabilities
+                            .get("vision")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let tools = capabilities
+                            .get("tools")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true);
 
                         let requires = obj
                             .get("requires")
@@ -93,15 +104,26 @@ impl ConfigLoader {
                         out.insert(
                             name,
                             ModelSpec {
-                                id: obj.get("id").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+                                id: obj
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default()
+                                    .to_string(),
                                 provider: obj
                                     .get("provider")
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("siliconflow")
                                     .to_string(),
                                 api_url_override,
-                                enabled: obj.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
-                                capabilities: ModelCapabilities { chat, vision, tools },
+                                enabled: obj
+                                    .get("enabled")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(true),
+                                capabilities: ModelCapabilities {
+                                    chat,
+                                    vision,
+                                    tools,
+                                },
                                 requires,
                             },
                         );
@@ -132,7 +154,11 @@ impl ConfigLoader {
         let mut out = BTreeMap::new();
         if let Some(items) = raw.get("providers").and_then(|v| v.as_array()) {
             for item in items {
-                let id = item.get("id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                let id = item
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
                 if id.is_empty() {
                     continue;
                 }
@@ -140,7 +166,11 @@ impl ConfigLoader {
                     id.clone(),
                     ProviderSpec {
                         id,
-                        label: item.get("label").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
+                        label: item
+                            .get("label")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown")
+                            .to_string(),
                         default_api_url: item
                             .get("default_api_url")
                             .and_then(|v| v.as_str())

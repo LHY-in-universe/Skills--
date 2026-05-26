@@ -19,10 +19,19 @@ use tokio_stream::Stream;
 fn run_error_to_sse(err: &RunError) -> serde_json::Value {
     match err {
         RunError::Aborted => serde_json::json!({ "type": "aborted" }),
-        RunError::Upstream(class) => serde_json::json!({
+        RunError::Upstream {
+            class,
+            message,
+            provider,
+            model,
+            api_url,
+        } => serde_json::json!({
             "type": "error",
-            "content": err.to_string(),
+            "content": message,
             "error_class": class,
+            "provider": provider,
+            "model": model,
+            "api_url": api_url,
         }),
         RunError::Tool(msg) => serde_json::json!({
             "type": "error",
@@ -53,6 +62,7 @@ pub async fn chat(
     let prepared = state
         .chat_service
         .prepare_chat(&req.user_input, req.conv_id.as_deref())
+        .await
         .map_err(internal_error)?;
     let run_guard = state
         .chat_service
@@ -172,7 +182,10 @@ pub async fn resume_chat(
 
     tokio::spawn(async move {
         let _run_guard = run_guard;
-        if let Err(err) = executor.resume(pending, req.granted, event_tx.clone()).await {
+        if let Err(err) = executor
+            .resume(pending, req.granted, event_tx.clone())
+            .await
+        {
             let _ = event_tx.send(run_error_to_sse(&err)).await;
         }
     });

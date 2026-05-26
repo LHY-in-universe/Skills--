@@ -4,47 +4,129 @@
       "id": "siliconflow",
       "label": "SiliconFlow",
       "default_api_url": "https://api.siliconflow.cn/v1/chat/completions",
-      "required_env_keys": [
-        "SILICONFLOW_API_KEY"
-      ],
+      "required_env_keys": ["SILICONFLOW_API_KEY"],
       "api_protocol": "openai-chat"
     },
     {
       "id": "deepseek",
       "label": "DeepSeek",
       "default_api_url": "https://api.deepseek.com/v1/chat/completions",
-      "required_env_keys": [
-        "DEEPSEEK_API_KEY"
-      ],
+      "required_env_keys": ["DEEPSEEK_API_KEY"],
       "api_protocol": "openai-chat"
     },
     {
-      "id": "kimi",
-      "label": "KimiCoding",
-      "aliases": [
-        "kimi-coding",
-        "kimi-code"
-      ],
-      "default_api_url": "https://api.kimi.com/coding/v1/chat/completions",
-      "required_env_keys": [
-        "KIMI_API_KEY",
-        "KIMICODE_API_KEY"
-      ],
+      "id": "openai",
+      "label": "OpenAI",
+      "default_api_url": "https://api.openai.com/v1/chat/completions",
+      "required_env_keys": ["OPENAI_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "default_api_url": "https://api.anthropic.com/v1/messages",
+      "required_env_keys": ["ANTHROPIC_API_KEY"],
+      "api_protocol": "anthropic"
+    },
+    {
+      "id": "google",
+      "label": "Google",
+      "aliases": ["gemini"],
+      "default_api_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
+      "required_env_keys": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "minimax",
+      "label": "MiniMax",
+      "default_api_url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
+      "required_env_keys": ["MINIMAX_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "zhipu",
+      "label": "ZhiPu",
+      "aliases": ["glm"],
+      "default_api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "required_env_keys": ["ZHIPU_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "moonshot",
+      "label": "Moonshot",
+      "aliases": ["kimi", "kimi-coding"],
+      "default_api_url": "https://api.moonshot.cn/v1/chat/completions",
+      "required_env_keys": ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "qwen",
+      "label": "Qwen",
+      "aliases": ["alibaba", "dashscope"],
+      "default_api_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "required_env_keys": ["DASHSCOPE_API_KEY", "QWEN_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "xai",
+      "label": "xAI",
+      "aliases": ["grok"],
+      "default_api_url": "https://api.x.ai/v1/chat/completions",
+      "required_env_keys": ["XAI_API_KEY"],
       "api_protocol": "openai-chat"
     },
     {
       "id": "nvidia",
       "label": "NVIDIA",
-      "aliases": [
-        "nim",
-        "nvidia-nim"
-      ],
+      "aliases": ["nim", "nvidia-nim"],
       "default_api_url": "https://integrate.api.nvidia.com/v1/chat/completions",
-      "required_env_keys": [
-        "NVIDIA_API_KEY",
-        "NVIDIA_NIM_API_KEY"
-      ],
+      "required_env_keys": ["NVIDIA_API_KEY", "NVIDIA_NIM_API_KEY"],
       "api_protocol": "openai-chat"
+    },
+    {
+      "id": "meta",
+      "label": "Meta",
+      "default_api_url": "",
+      "required_env_keys": [],
+      "api_protocol": "openai-chat",
+      "note": "Meta 模型通常通过其他 provider（SiliconFlow/NVIDIA/Local）接入"
+    },
+    {
+      "id": "mistral",
+      "label": "Mistral",
+      "default_api_url": "https://api.mistral.ai/v1/chat/completions",
+      "required_env_keys": ["MISTRAL_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "cohere",
+      "label": "Cohere",
+      "default_api_url": "https://api.cohere.com/v2/chat",
+      "required_env_keys": ["COHERE_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "baichuan",
+      "label": "Baichuan",
+      "default_api_url": "https://api.baichuan-ai.com/v1/chat/completions",
+      "required_env_keys": ["BAICHUAN_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "yi",
+      "label": "Yi",
+      "default_api_url": "https://api.lingyiwanwu.com/v1/chat/completions",
+      "required_env_keys": ["YI_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
+      "id": "local",
+      "label": "Local",
+      "aliases": ["ollama", "lmstudio", "vllm", "llamacpp"],
+      "default_api_url": "http://localhost:11434/v1/chat/completions",
+      "required_env_keys": [],
+      "api_protocol": "openai-chat",
+      "note": "本地模型（Ollama / LM Studio / vLLM / llama.cpp）"
     }
   ]
 }

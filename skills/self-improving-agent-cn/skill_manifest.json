@@ -1,0 +1,30 @@
+{
+  "tool_name": "self_improving_agent_cn",
+  "skill_dir": "self-improving-agent-cn",
+  "script": "__clawhub_adapter.py",
+  "description": "AI自我改进与记忆系统适配器。可用 action: check_memory, log_best_practice, log_correction, log_error",
+  "trusted": false,
+  "adapter_mode": "dispatch",
+  "adapter_actions": {
+    "check_memory": "check_memory.py",
+    "log_best_practice": "log_best_practice.py",
+    "log_correction": "log_correction.py",
+    "log_error": "log_error.py"
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "description": "要执行的子动作。可选: check_memory, log_best_practice, log_correction, log_error"
+      },
+      "args": {
+        "type": "object",
+        "description": "传给对应脚本的参数对象，会自动转成 --key value 命令行参数"
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

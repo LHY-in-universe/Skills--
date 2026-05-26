@@ -17,7 +17,11 @@ pub struct DoctorFinding {
 }
 
 impl DoctorFinding {
-    pub fn critical(code: impl Into<String>, message: impl Into<String>, fix_hint: impl Into<String>) -> Self {
+    pub fn critical(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        fix_hint: impl Into<String>,
+    ) -> Self {
         Self {
             severity: "critical",
             code: code.into(),
@@ -26,7 +30,11 @@ impl DoctorFinding {
         }
     }
 
-    pub fn warn(code: impl Into<String>, message: impl Into<String>, fix_hint: impl Into<String>) -> Self {
+    pub fn warn(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        fix_hint: impl Into<String>,
+    ) -> Self {
         Self {
             severity: "warn",
             code: code.into(),
@@ -46,4 +54,3 @@ pub struct DoctorReport {
     pub findings: Vec<DoctorFinding>,
     pub runtime: crate::domain::models::RuntimeSettings,
 }
-

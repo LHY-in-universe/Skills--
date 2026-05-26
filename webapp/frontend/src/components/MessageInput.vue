@@ -176,7 +176,7 @@ const onInput = (e) => {
         <Send size="18" />
       </button>
     </div>
-    <p style="text-align: center; font-size: 11px; color: var(--text-secondary); margin-top: 10px; opacity: 0.5;">
+    <p style="text-align: center; font-size: var(--font-xs); color: var(--text-secondary); margin-top: 10px; opacity: 0.5;">
       Shift+Enter 发送 · / 命令 · ↑↓ 历史
     </p>
   </div>
@@ -212,7 +212,7 @@ const onInput = (e) => {
 
 .slash-cmd {
   font-family: 'Fira Code', monospace;
-  font-size: 12px;
+  font-size: var(--font-xs);
   font-weight: 600;
   color: var(--accent-color, #6366f1);
   white-space: nowrap;
@@ -220,7 +220,7 @@ const onInput = (e) => {
 }
 
 .slash-desc {
-  font-size: 11px;
+  font-size: var(--font-xs);
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;

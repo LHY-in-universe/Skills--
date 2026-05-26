@@ -1,0 +1,14 @@
+{
+  "tool_name": "vision_analyze",
+  "skill_dir": "vision_analyze",
+  "script": "scripts/analyze_image.py",
+  "description": "使用视觉模型分析图片内容",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "image_path": {"type": "string", "description": "图片文件路径"},
+      "prompt": {"type": "string", "description": "分析提示词（可选）"}
+    },
+    "required": ["image_path"]
+  }
+}

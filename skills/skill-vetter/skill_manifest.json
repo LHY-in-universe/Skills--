@@ -1,0 +1,18 @@
+{
+  "tool_name": "skill_vetter",
+  "skill_dir": "skill-vetter",
+  "script": "__clawhub_adapter.py",
+  "description": "Security-first skill vetting 文档适配器。输出审计检查清单与风险评估模板。",
+  "trusted": false,
+  "adapter_mode": "doc",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "description": "你想重点审计的方面，例如 network、credentials、permissions"
+      }
+    },
+    "required": []
+  }
+}

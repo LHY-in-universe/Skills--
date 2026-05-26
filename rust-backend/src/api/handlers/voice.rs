@@ -61,14 +61,9 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                     let mut guard = pipeline.lock().await;
                     guard.push_audio_chunk(&bytes)
                 };
-                if dispatch_pipeline_events(
-                    events,
-                    &state,
-                    &client_tx,
-                    &current_conv_id,
-                )
-                .await
-                .is_err()
+                if dispatch_pipeline_events(events, &state, &client_tx, &current_conv_id)
+                    .await
+                    .is_err()
                 {
                     break;
                 }
@@ -142,14 +137,9 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                             "end_utterance",
                         )
                         .await;
-                        if dispatch_pipeline_events(
-                            events,
-                            &state,
-                            &client_tx,
-                            &current_conv_id,
-                        )
-                        .await
-                        .is_err()
+                        if dispatch_pipeline_events(events, &state, &client_tx, &current_conv_id)
+                            .await
+                            .is_err()
                         {
                             break;
                         }
@@ -203,13 +193,9 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                         let conv_id = current;
                         let bridge_state = state.clone();
                         tokio::spawn(async move {
-                            if let Err(err) = stream_chat_to_voice_ws(
-                                bridge_state,
-                                text,
-                                conv_id,
-                                tx.clone(),
-                            )
-                            .await
+                            if let Err(err) =
+                                stream_chat_to_voice_ws(bridge_state, text, conv_id, tx.clone())
+                                    .await
                             {
                                 let mut sink = tx.lock().await;
                                 let _ = sink
@@ -228,13 +214,8 @@ async fn run_voice_bridge(client_socket: WebSocket, state: AppState) {
                     "abort" => {
                         let conv_id = current_conv_id.lock().await.clone();
                         state.voice_bridge.abort(conv_id.as_deref());
-                        let _ = send_voice_session_state(
-                            &client_tx,
-                            conv_id,
-                            "listening",
-                            "abort",
-                        )
-                        .await;
+                        let _ = send_voice_session_state(&client_tx, conv_id, "listening", "abort")
+                            .await;
                     }
                     _ => {}
                 }
@@ -289,13 +270,8 @@ async fn dispatch_pipeline_events(
                 let bridge_state = state.clone();
                 let tx = client_tx.clone();
                 tokio::spawn(async move {
-                    if let Err(err) = stream_chat_to_voice_ws(
-                        bridge_state,
-                        text,
-                        conv_id,
-                        tx.clone(),
-                    )
-                    .await
+                    if let Err(err) =
+                        stream_chat_to_voice_ws(bridge_state, text, conv_id, tx.clone()).await
                     {
                         let mut sink = tx.lock().await;
                         let _ = sink
@@ -338,9 +314,8 @@ async fn stream_chat_to_voice_ws(
                 .to_string();
             tokio::spawn(async move {
                 if event_type == "done" {
-                    let _ =
-                        send_voice_session_state(&tx, conv_id.clone(), "speaking", "chat_done")
-                            .await;
+                    let _ = send_voice_session_state(&tx, conv_id.clone(), "speaking", "chat_done")
+                        .await;
                 }
                 {
                     let mut sink = tx.lock().await;
@@ -353,8 +328,8 @@ async fn stream_chat_to_voice_ws(
                     }
                 }
                 if event_type == "done" {
-                    let _ = send_voice_session_state(&tx, conv_id, "listening", "tts_flushed")
-                        .await;
+                    let _ =
+                        send_voice_session_state(&tx, conv_id, "listening", "tts_flushed").await;
                 }
             });
         })

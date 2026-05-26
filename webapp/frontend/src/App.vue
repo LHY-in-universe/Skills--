@@ -1,16 +1,14 @@
 <script setup>
 import { ref, onMounted, provide, watch, nextTick } from 'vue'
+import { RouterView } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
-import ChatContainer from './components/ChatContainer.vue'
-import MessageInput from './components/MessageInput.vue'
-import VoiceAssistant from './components/VoiceAssistant.vue'
 import { createApiClient } from './lib/api'
 
 const messages = ref([])
 const isTyping = ref(false)
 const streamingContent = ref('')
 const isStreaming = ref(false)
-const streamingModel = ref('')  // model name shown during generation
+const streamingModel = ref('')
 const models = ref([])
 const currentModel = ref('')
 const skills = ref([])
@@ -32,17 +30,22 @@ const voiceRuntime = ref({
   chunksPlayed: 0,
 })
 
-// Desktop sprite (Electron) mode
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI
 const isCompact = ref(false)
-// Dev mode: Electron loads from http://localhost:5173, Vite proxy works, use relative URLs
-// Prod mode: Electron loads from file://, no proxy, need absolute URL
 const API_BASE = (isElectron && window.location.protocol === 'file:')
   ? 'http://localhost:8000'
   : ''
 const api = createApiClient(API_BASE)
 const notice = ref({ show: false, type: 'info', text: '' })
 let noticeTimer = null
+
+const permissionDialog = ref({
+  visible: false,
+  toolName: '',
+  description: '',
+})
+
+let abortController = null
 
 const notify = (text, type = 'info') => {
   notice.value = { show: true, type, text: String(text || '') }
@@ -57,26 +60,11 @@ const toggleCompact = () => {
   if (isElectron) window.electronAPI.toggleCompact(isCompact.value)
 }
 
-// Permission dialog state
-const permissionDialog = ref({
-  visible: false,
-  toolName: '',
-  description: ''
-})
-
-// Abort controller ref for canceling fetch
-let abortController = null
-
-// Sync light mode to document.body so all CSS vars take effect globally
 watch(isLightMode, (val) => {
-  if (val) {
-    document.body.classList.add('light-mode')
-  } else {
-    document.body.classList.remove('light-mode')
-  }
+  if (val) document.body.classList.add('light-mode')
+  else document.body.classList.remove('light-mode')
 })
 
-// Provide state to children
 provide('messages', messages)
 provide('isTyping', isTyping)
 provide('streamingContent', streamingContent)
@@ -102,14 +90,17 @@ provide('notify', notify)
 const fetchConfig = async () => {
   try {
     const configRes = await api.get('/api/config')
-    if (configRes) { apiConfig.value = configRes; currentModel.value = configRes.current_model }
+    if (configRes) {
+      apiConfig.value = configRes
+      currentModel.value = configRes.current_model
+    }
   } catch (err) {
     console.error('Failed to fetch config:', err)
   }
 }
 
 const exportConversation = () => {
-  const convName = conversations.value.find(c => c.id === activeConversationId.value)?.name || '对话'
+  const convName = conversations.value.find((item) => item.id === activeConversationId.value)?.name || '对话'
   const lines = [`# ${convName}\n`]
   for (const msg of messages.value) {
     if (msg.role === 'user') {
@@ -140,18 +131,18 @@ const fetchHistory = async () => {
   try {
     const historyRes = await api.get('/api/history')
     const buckets = new Map()
-    for (const m of messages.value) {
-      const key = `${m?.role || ''}|${m?.content || ''}|${JSON.stringify(m?.tool_calls || [])}`
+    for (const msg of messages.value) {
+      const key = `${msg?.role || ''}|${msg?.content || ''}|${JSON.stringify(msg?.tool_calls || [])}`
       const arr = buckets.get(key) || []
-      if (m && (m._tokens || m._model)) arr.push({ _tokens: m._tokens, _model: m._model })
+      if (msg && (msg._tokens || msg._model)) arr.push({ _tokens: msg._tokens, _model: msg._model })
       buckets.set(key, arr)
     }
-    messages.value = historyRes.map((m) => {
-      const key = `${m?.role || ''}|${m?.content || ''}|${JSON.stringify(m?.tool_calls || [])}`
+    messages.value = historyRes.map((msg) => {
+      const key = `${msg?.role || ''}|${msg?.content || ''}|${JSON.stringify(msg?.tool_calls || [])}`
       const arr = buckets.get(key) || []
       const cached = arr.shift()
       buckets.set(key, arr)
-      return cached ? { ...m, ...cached } : m
+      return cached ? { ...msg, ...cached } : msg
     })
   } catch (err) {
     console.error('Failed to fetch history:', err)
@@ -162,7 +153,7 @@ const fetchConversations = async () => {
   try {
     const res = await api.get('/api/conversations')
     conversations.value = res
-    const active = res.find(c => c.active)
+    const active = res.find((item) => item.active)
     if (active) activeConversationId.value = active.id
   } catch (err) {
     console.error('Failed to fetch conversations:', err)
@@ -170,7 +161,7 @@ const fetchConversations = async () => {
 }
 
 const switchConversation = async (convId) => {
-  if (convId === activeConversationId.value) return
+  if (!convId || convId === activeConversationId.value) return
   isTyping.value = false
   await api.post(`/api/conversations/${convId}/activate`)
   activeConversationId.value = convId
@@ -184,7 +175,10 @@ const createConversation = async () => {
 }
 
 const fetchInitialData = async () => {
-  const safe = (p) => p.catch(err => { console.error('fetch error:', err); return null })
+  const safe = (promise) => promise.catch((err) => {
+    console.error('fetch error:', err)
+    return null
+  })
   const [modelsRes, configRes, skillsRes, routingRes] = await Promise.all([
     safe(api.get('/api/models')),
     safe(api.get('/api/config')),
@@ -192,10 +186,9 @@ const fetchInitialData = async () => {
     safe(api.get('/api/routing')),
   ])
   if (modelsRes) {
-    // Transform dict { "Display Name": { id, provider, api_url } } to array of objects
     models.value = Object.entries(modelsRes).map(([displayName, config]) => ({
       displayName,
-      apiId: config.id || config, // handle legacy string values if any
+      apiId: config.id || config,
       provider: config.provider || '',
       apiUrl: config.api_url || '',
       enabled: config.enabled !== false,
@@ -203,21 +196,21 @@ const fetchInitialData = async () => {
       requires: config.requires || [],
     }))
   }
-  if (configRes) { apiConfig.value = configRes; currentModel.value = configRes.current_model }
+  if (configRes) {
+    apiConfig.value = configRes
+    currentModel.value = configRes.current_model
+  }
   if (skillsRes) skills.value = skillsRes
   if (routingRes) routingConfig.value = routingRes
   await Promise.all([fetchHistory(), fetchConversations()])
 }
 
-const sidebarRef = ref(null)
-
-// ── SSE stream reader ────────────────────────────────────────
 const processStream = async (response) => {
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
   let respondingModel = currentModel.value
-  let _pendingUsage = null
+  let pendingUsage = null
 
   while (true) {
     const { done, value } = await reader.read()
@@ -229,21 +222,22 @@ const processStream = async (response) => {
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       let event
-      try { event = JSON.parse(line.slice(6)) } catch { continue }
+      try {
+        event = JSON.parse(line.slice(6))
+      } catch {
+        continue
+      }
 
       switch (event.type) {
         case 'plan':
           streamMeta.value.plan = Array.isArray(event.steps) ? event.steps : []
           break
-
         case 'step_start':
           streamMeta.value.currentStep = event.step || ''
           break
-
         case 'step_done':
           streamMeta.value.currentStep = ''
           break
-
         case 'audit':
           streamMeta.value.audit = event.ok ? 'ok' : 'retry'
           if (event.ok === false && event.reason) streamMeta.value.auditReason = event.reason
@@ -260,31 +254,21 @@ const processStream = async (response) => {
           streamMeta.value.failover = arr.slice(-8)
           break
         }
-
         case 'start':
           streamingModel.value = event._model || currentModel.value
           apiConfig.value = {
             ...(apiConfig.value || {}),
             current_model: event._model || currentModel.value,
             effective_model_id: event._model_id || apiConfig.value?.effective_model_id || '',
-            effective_provider: event._provider || apiConfig.value?.effective_provider || ''
+            effective_provider: event._provider || apiConfig.value?.effective_provider || '',
           }
           break
-
         case 'text':
           streamingContent.value += event.content
-          await nextTick()  // yield to browser for each chunk so streaming is visible
+          await nextTick()
           break
-
-        case 'tool_start':
-          // tool indicator shown via isTyping dots; history refresh on done will show full record
-          break
-
-        case 'tool_done':
-          break
-
         case 'usage':
-          _pendingUsage = { prompt: event.prompt, completion: event.completion, total: event.total }
+          pendingUsage = { prompt: event.prompt, completion: event.completion, total: event.total }
           liveUsage.value.prompt += event.prompt || 0
           liveUsage.value.completion += event.completion || 0
           liveUsage.value.total += event.total || ((event.prompt || 0) + (event.completion || 0))
@@ -293,9 +277,7 @@ const processStream = async (response) => {
           liveUsage.value.provider = event.provider || liveUsage.value.provider || ''
           liveUsage.value.cached_read += event.cached_read || 0
           liveUsage.value.cached_write += event.cached_write || 0
-          sidebarRef.value?.fetchTokenStats()
           break
-
         case 'permission_required':
           streamingContent.value = ''
           streamingModel.value = ''
@@ -303,11 +285,10 @@ const processStream = async (response) => {
           permissionDialog.value = {
             visible: true,
             toolName: event.tool_name,
-            description: event.description
+            description: event.description,
           }
           await fetchHistory()
           return { status: 'permission' }
-
         case 'aborted':
           streamingContent.value = ''
           streamingModel.value = ''
@@ -315,7 +296,6 @@ const processStream = async (response) => {
           isTyping.value = false
           await fetchHistory()
           return { status: 'aborted' }
-
         case 'error':
           streamingContent.value = ''
           streamingModel.value = ''
@@ -324,29 +304,24 @@ const processStream = async (response) => {
           return {
             status: 'error',
             message: event.content || 'Unknown stream error',
-            errorClass: event.error_class || ''
+            errorClass: event.error_class || '',
           }
-
         case 'done': {
           respondingModel = event._model || streamingModel.value || currentModel.value
-          if (event._tier) {
-            lastRouteInfo.value = { tier: event._tier, model: respondingModel }
-          }
-          // Fetch history first so the final message is ready,
-          // then clear streaming content — avoids flash of empty space
+          if (event._tier) lastRouteInfo.value = { tier: event._tier, model: respondingModel }
           const prevLen = messages.value.length
           await fetchHistory()
-          for (let i = prevLen; i < messages.value.length; i++) {
+          for (let i = prevLen; i < messages.value.length; i += 1) {
             const msg = messages.value[i]
             if (msg.role === 'assistant' && !msg.tool_calls && msg.content?.trim()) {
               messages.value[i] = {
                 ...msg,
                 _model: respondingModel,
-                ...(_pendingUsage ? { _tokens: _pendingUsage } : {})
+                ...(pendingUsage ? { _tokens: pendingUsage } : {}),
               }
             }
           }
-          _pendingUsage = null
+          pendingUsage = null
           streamingContent.value = ''
           streamingModel.value = ''
           isStreaming.value = false
@@ -362,7 +337,9 @@ const processStream = async (response) => {
 const sendMessage = async (text) => {
   if (!text.trim()) return
   if (abortController) {
-    try { abortController.abort() } catch {}
+    try {
+      abortController.abort()
+    } catch {}
   }
   messages.value.push({ role: 'user', content: text })
   isTyping.value = true
@@ -378,7 +355,7 @@ const sendMessage = async (text) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_input: text, conv_id: activeConversationId.value || undefined }),
-        signal: abortController.signal
+        signal: abortController.signal,
       })
       const result = await processStream(response)
       if (result?.status === 'error') {
@@ -402,7 +379,7 @@ const sendMessage = async (text) => {
       if (err.name !== 'AbortError') {
         messages.value.push({
           role: 'assistant',
-          content: `**Error:** ${err.message}. Please check your API configuration.`
+          content: `**Error:** ${err.message}. Please check your API configuration.`,
         })
         isTyping.value = false
       }
@@ -416,18 +393,17 @@ const handlePermissionResponse = async (granted, alwaysAllow = false) => {
   isTyping.value = true
   isStreaming.value = true
   streamingContent.value = ''
-
   abortController = new AbortController()
   try {
-      const response = await api.stream('/api/chat/resume', {
+    const response = await api.stream('/api/chat/resume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         granted,
         always_allow: alwaysAllow,
-        conv_id: activeConversationId.value || undefined
+        conv_id: activeConversationId.value || undefined,
       }),
-      signal: abortController.signal
+      signal: abortController.signal,
     })
     const result = await processStream(response)
     if (result?.status === 'error') {
@@ -452,7 +428,7 @@ const abortChat = async () => {
 }
 
 const clearHistory = async () => {
-  await api.post('/api/history/clear?conv_id=' + encodeURIComponent(activeConversationId.value || ''))
+  await api.post(`/api/history/clear?conv_id=${encodeURIComponent(activeConversationId.value || '')}`)
   messages.value = []
   await fetchConversations()
 }
@@ -463,38 +439,37 @@ const toggleTheme = () => {
 
 provide('clearHistoryFn', clearHistory)
 provide('createConversationFn', createConversation)
+provide('appActions', {
+  sendMessage,
+  abortChat,
+  refreshGlobalData: fetchInitialData,
+  fetchConfig,
+  fetchHistory,
+  fetchConversations,
+  switchConversation,
+  createConversation,
+  clearHistory,
+  toggleTheme,
+})
 
 onMounted(fetchInitialData)
 </script>
 
 <template>
-  <!-- Desktop sprite: compact bubble -->
   <div v-if="isElectron && isCompact" class="desktop-bubble" @click="toggleCompact">🤖</div>
 
-  <!-- Desktop sprite: drag bar (expanded mode) -->
   <div v-if="isElectron && !isCompact" class="desktop-drag-bar">
     <span class="drag-region">桌面精灵</span>
     <button class="no-drag" @click="toggleCompact" title="折叠">—</button>
   </div>
 
-  <Sidebar
-    ref="sidebarRef"
-    v-show="!isElectron || !isCompact"
-    @clear-history="clearHistory"
-    @refresh-data="fetchInitialData"
-    @toggle-theme="toggleTheme"
-    @switch-conversation="switchConversation"
-    @create-conversation="createConversation"
-  />
-  <main v-show="!isElectron || !isCompact" class="chat-main">
-    <div v-if="notice.show" class="global-notice" :class="`notice-${notice.type}`">{{ notice.text }}</div>
-    <ChatContainer />
-    <MessageInput @send="sendMessage" @abort="abortChat" />
-  </main>
-  
-  <VoiceAssistant />
-
-  <!-- Permission Dialog -->
+  <div v-show="!isElectron || !isCompact" class="app-shell">
+    <Sidebar />
+    <main class="chat-main app-content">
+      <div v-if="notice.show" class="global-notice" :class="`notice-${notice.type}`">{{ notice.text }}</div>
+      <RouterView />
+    </main>
+  </div>
   <Transition name="dialog-fade">
     <div v-if="permissionDialog.visible" class="permission-overlay" @click.self="handlePermissionResponse(false)">
       <div class="permission-dialog">
@@ -510,15 +485,9 @@ onMounted(fetchInitialData)
           <pre class="permission-detail">{{ permissionDialog.description }}</pre>
         </div>
         <div class="permission-actions">
-          <button class="perm-btn always" @click="handlePermissionResponse(true, true)">
-            ∞ 一直同意
-          </button>
-          <button class="perm-btn deny" @click="handlePermissionResponse(false)">
-            ✕ 拒绝
-          </button>
-          <button class="perm-btn approve" @click="handlePermissionResponse(true, false)">
-            ✓ 同意执行
-          </button>
+          <button class="perm-btn always" @click="handlePermissionResponse(true, true)">∞ 一直同意</button>
+          <button class="perm-btn deny" @click="handlePermissionResponse(false)">✕ 拒绝</button>
+          <button class="perm-btn approve" @click="handlePermissionResponse(true, false)">✓ 同意执行</button>
         </div>
       </div>
     </div>
@@ -526,21 +495,13 @@ onMounted(fetchInitialData)
 </template>
 
 <style scoped>
-.global-notice {
-  position: sticky;
-  top: 8px;
-  z-index: 20;
-  margin: 8px auto 0;
-  width: fit-content;
-  max-width: 92%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid var(--border-color);
-  background: var(--msg-assistant-bg);
-  color: var(--text-primary);
+.app-shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
 }
-.notice-success { border-color: #10b98166; }
-.notice-error { border-color: #ef444466; }
+
+.app-content {
+  min-width: 0;
+}
 </style>

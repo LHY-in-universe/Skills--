@@ -1,0 +1,24 @@
+{
+  "tool_name": "weather_report",
+  "skill_dir": "weather-pollen",
+  "script": "__clawhub_tooldef_adapter.mjs",
+  "description": "Weather and pollen reports for any location using free APIs. TypeScript tool: weather_report",
+  "trusted": false,
+  "adapter_mode": "node_tooldef",
+  "adapter_entry": "logic.ts",
+  "default_tool": "weather_report",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "includePollen": {
+        "type": "boolean",
+        "description": "Include pollen data"
+      },
+      "location": {
+        "type": "string",
+        "description": "Location name to display (coordinates configured via env)"
+      }
+    },
+    "required": []
+  }
+}

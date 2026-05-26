@@ -94,10 +94,7 @@ fn remove_incompatible_chars(s: &str) -> String {
     s.chars()
         .map(|c| {
             let code = c as u32;
-            if (0..=8).contains(&code)
-                || (11..=12).contains(&code)
-                || (14..=31).contains(&code)
-            {
+            if (0..=8).contains(&code) || (11..=12).contains(&code) || (14..=31).contains(&code) {
                 ' '
             } else {
                 c
@@ -248,7 +245,10 @@ fn split_text_by_byte_length(text: &str, byte_length: usize) -> Vec<Vec<u8>> {
 }
 
 fn trim_bytes(b: &[u8]) -> &[u8] {
-    let start = b.iter().position(|&c| !c.is_ascii_whitespace()).unwrap_or(b.len());
+    let start = b
+        .iter()
+        .position(|&c| !c.is_ascii_whitespace())
+        .unwrap_or(b.len());
     let end = b
         .iter()
         .rposition(|&c| !c.is_ascii_whitespace())
@@ -296,11 +296,7 @@ fn parse_text_path(data: &str) -> Option<&str> {
 }
 
 /// 对一段文本执行流式 Edge TTS 合成，通过 callback 逐块返回 MP3 字节。
-pub async fn stream_audio<F>(
-    text: &str,
-    voice: &str,
-    mut on_audio: F,
-) -> anyhow::Result<()>
+pub async fn stream_audio<F>(text: &str, voice: &str, mut on_audio: F) -> anyhow::Result<()>
 where
     F: FnMut(Vec<u8>) + Send,
 {
@@ -343,12 +339,10 @@ where
 
     let mut request = url.into_client_request()?;
     for (k, v) in wss_headers() {
-        request
-            .headers_mut()
-            .insert(
-                http::header::HeaderName::from_bytes(k.as_bytes())?,
-                http::header::HeaderValue::from_str(&v)?,
-            );
+        request.headers_mut().insert(
+            http::header::HeaderName::from_bytes(k.as_bytes())?,
+            http::header::HeaderValue::from_str(&v)?,
+        );
     }
     request.headers_mut().insert(
         http::header::COOKIE,
@@ -402,7 +396,10 @@ mod tests {
 
     #[test]
     fn test_xml_escape() {
-        assert_eq!(xml_escape("a&b<c>d\"e'f"), "a&amp;b&lt;c&gt;d&quot;e&apos;f");
+        assert_eq!(
+            xml_escape("a&b<c>d\"e'f"),
+            "a&amp;b&lt;c&gt;d&quot;e&apos;f"
+        );
         assert_eq!(xml_escape("hello"), "hello");
     }
 
@@ -443,7 +440,7 @@ mod tests {
         let mut data = vec![0u8, 10];
         data.extend_from_slice(b"Content-Ty"); // 10 bytes header
         data.extend_from_slice(b"\xAA\xBB\xCC"); // audio
-        // No Content-Type: audio/mpeg header present, but audio data after header
+                                                 // No Content-Type: audio/mpeg header present, but audio data after header
         let result = parse_binary_audio(&data);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), vec![0xAA, 0xBB, 0xCC]);

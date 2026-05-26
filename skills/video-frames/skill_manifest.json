@@ -1,0 +1,15 @@
+{
+  "tool_name": "video_frames",
+  "skill_dir": "video-frames",
+  "script": "scripts/frame.sh",
+  "description": "从视频中提取指定时间点的帧画面（需要 ffmpeg）",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "video_path": {"type": "string", "description": "视频文件路径"},
+      "time": {"type": "string", "description": "时间戳，如 00:00:10"},
+      "out": {"type": "string", "description": "输出图片路径"}
+    },
+    "required": ["video_path"]
+  }
+}

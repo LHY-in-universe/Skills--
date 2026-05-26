@@ -190,8 +190,7 @@ impl VoicePipeline {
             while sys::SherpaOnnxIsKeywordStreamReady(self.kws_spotter, self.kws_stream) == 1 {
                 sys::SherpaOnnxDecodeKeywordStream(self.kws_spotter, self.kws_stream);
             }
-            let result_ptr =
-                sys::SherpaOnnxGetKeywordResult(self.kws_spotter, self.kws_stream);
+            let result_ptr = sys::SherpaOnnxGetKeywordResult(self.kws_spotter, self.kws_stream);
             if result_ptr.is_null() {
                 return None;
             }

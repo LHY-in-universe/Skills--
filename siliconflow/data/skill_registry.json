@@ -1,1 +1,589 @@
-{}
+[
+  {
+    "description": "获取当前的精确日期、时刻（北京时间）和星期",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {},
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/get_time.py",
+    "skill_dir": "clock",
+    "tool_name": "get_current_time",
+    "version_or_ref": null
+  },
+  {
+    "description": "在 /Users/lhy/Desktop/Skills探索 目录内操作文件：列出文件(list)、读取(read)、写入/新建(write)、追加(append)、文本替换(replace)",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "content": {
+          "description": "写入或追加的内容（write/append 操作）",
+          "type": "string"
+        },
+        "file": {
+          "description": "文件名（list 操作可省略）",
+          "type": "string"
+        },
+        "folder": {
+          "description": "目标文件夹路径（必须在 /Users/lhy/Desktop/Skills探索 内）",
+          "type": "string"
+        },
+        "new": {
+          "description": "替换后的新文本（replace 操作）",
+          "type": "string"
+        },
+        "old": {
+          "description": "要被替换的原始文本（replace 操作）",
+          "type": "string"
+        },
+        "op": {
+          "description": "操作类型",
+          "enum": [
+            "list",
+            "read",
+            "write",
+            "append",
+            "replace"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "folder"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/edit_file.py",
+    "skill_dir": "file_editor",
+    "tool_name": "file_editor",
+    "version_or_ref": null
+  },
+  {
+    "description": "删除一条长期记忆。",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "key": {
+          "description": "要删除的记忆键名",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "rust_builtin",
+      "has_skill_md": false,
+      "script_kind": "python"
+    },
+    "script": "scripts/memory_forget.py",
+    "skill_dir": "memory_forget",
+    "tool_name": "memory_forget",
+    "version_or_ref": null
+  },
+  {
+    "description": "保存一条长期记忆（持久化到本地）。适合记录用户名字、偏好、背景信息等长期事实。",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "key": {
+          "description": "记忆键名，如 user_name、preferred_language",
+          "type": "string"
+        },
+        "value": {
+          "description": "要记住的内容",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "rust_builtin",
+      "has_skill_md": false,
+      "script_kind": "python"
+    },
+    "script": "scripts/memory_save.py",
+    "skill_dir": "memory_save",
+    "tool_name": "memory_save",
+    "version_or_ref": null
+  },
+  {
+    "description": "用随机数估算一维定积分，支持五种蒙特卡洛方法（基础随机采样、打靶法、分层采样、重要性采样、控制变量法），输出估计值、绝对误差、相对误差、标准差；'all' 模式同时运行全部方法并按误差排序对比",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "func": {
+          "default": "sin",
+          "description": "被积函数：sin=sin(x)（真实值≈0.4597），x2=x²（真实值=1/3），exp=e^x（真实值≈1.7183），区间均为 [0,1]",
+          "enum": [
+            "sin",
+            "x2",
+            "exp"
+          ],
+          "type": "string"
+        },
+        "method": {
+          "default": "crude",
+          "description": "积分方法；'all' 同时运行所有方法并输出横向对比，按误差从小到大排序",
+          "enum": [
+            "crude",
+            "hit_or_miss",
+            "stratified",
+            "importance",
+            "control_variates",
+            "all"
+          ],
+          "type": "string"
+        },
+        "n": {
+          "default": 100000,
+          "description": "随机采样点数，越大精度越高但耗时越长，推荐范围 10000~1000000",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "seed": {
+          "default": 42,
+          "description": "随机种子，固定后结果完全可复现；'all' 模式下每种方法使用相同种子保证公平对比",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/monte_carlo.py",
+    "skill_dir": "monte_carlo",
+    "tool_name": "monte_carlo_integration",
+    "version_or_ref": null
+  },
+  {
+    "description": "在项目虚拟环境（venv）中执行 pip 操作：install 安装包、uninstall 卸载包、list 列出已安装包、show 查看包信息。install/uninstall 需要用户审批。",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "action": {
+          "default": "install",
+          "description": "操作类型：install=安装，uninstall=卸载，list=列出所有包，show=查看包详情",
+          "enum": [
+            "install",
+            "uninstall",
+            "list",
+            "show"
+          ],
+          "type": "string"
+        },
+        "package": {
+          "description": "包名，可同时指定多个（空格分隔），如 'numpy pandas'。list 操作无需此参数。",
+          "type": "string"
+        },
+        "venv_path": {
+          "description": "虚拟环境路径，留空则使用项目默认 venv（webapp/backend/venv）",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": false,
+      "script_kind": "python"
+    },
+    "script": "scripts/pip_venv.py",
+    "skill_dir": "pip_venv",
+    "tool_name": "pip_venv",
+    "trusted": true,
+    "version_or_ref": null
+  },
+  {
+    "description": "安全写入 Python 文件，写入前强制校验：路径范围、语法、禁止危险调用、结构规范",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "content": {
+          "description": "Python 代码内容，换行用 \\n，制表符用 \\t",
+          "type": "string"
+        },
+        "file": {
+          "description": "文件名，必须以 .py 结尾",
+          "type": "string"
+        },
+        "folder": {
+          "description": "目标文件夹路径",
+          "type": "string"
+        }
+      },
+      "required": [
+        "folder",
+        "file",
+        "content"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/write_python.py",
+    "skill_dir": "python_writer",
+    "tool_name": "write_python",
+    "version_or_ref": null
+  },
+  {
+    "adapter_actions": {
+      "check_memory": "check_memory.py",
+      "log_best_practice": "log_best_practice.py",
+      "log_correction": "log_correction.py",
+      "log_error": "log_error.py"
+    },
+    "adapter_mode": "dispatch",
+    "description": "AI自我改进与记忆系统适配器。可用 action: check_memory, log_best_practice, log_correction, log_error",
+    "install_source": "clawhub",
+    "managed_by": "clawhub",
+    "origin": {
+      "installedAt": 1776655283630,
+      "installedVersion": "1.0.0",
+      "registry": "https://clawhub.ai",
+      "slug": "self-improving-agent-cn",
+      "version": 1
+    },
+    "parameters": {
+      "properties": {
+        "action": {
+          "description": "要执行的子动作。可选: check_memory, log_best_practice, log_correction, log_error",
+          "type": "string"
+        },
+        "args": {
+          "description": "传给对应脚本的参数对象，会自动转成 --key value 命令行参数",
+          "type": "object"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "risk_level": "medium",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "__clawhub_adapter.py",
+    "skill_dir": "self-improving-agent-cn",
+    "tool_name": "self_improving_agent_cn",
+    "trusted": false,
+    "version_or_ref": null
+  },
+  {
+    "adapter_mode": "doc",
+    "description": "Security-first skill vetting 文档适配器。输出审计检查清单与风险评估模板。",
+    "install_source": "clawhub",
+    "managed_by": "clawhub",
+    "origin": {
+      "installedAt": 1776655183622,
+      "installedVersion": "1.0.0",
+      "registry": "https://clawhub.ai",
+      "slug": "skill-vetter",
+      "version": 1
+    },
+    "parameters": {
+      "properties": {
+        "question": {
+          "description": "你想重点审计的方面，例如 network、credentials、permissions",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "risk_level": "medium",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "__clawhub_adapter.py",
+    "skill_dir": "skill-vetter",
+    "tool_name": "skill_vetter",
+    "trusted": false,
+    "version_or_ref": null
+  },
+  {
+    "description": "自动扫描 skills/ 目录，校验并注册新技能到 skill_registry.json",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/scan_skills.py",
+    "skill_dir": "skill_manager",
+    "tool_name": "skill_manager",
+    "version_or_ref": null
+  },
+  {
+    "description": "管理历史对话压缩时的摘要注意事项规则。支持列出(list)、添加(add)、删除(remove)、清空(clear)规则。规则会在每次压缩历史时自动注入摘要提示词。",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "op": {
+          "description": "操作类型：list=列出所有规则，add=添加规则，remove=删除规则（支持文本或序号），clear=清空所有规则",
+          "enum": [
+            "list",
+            "add",
+            "remove",
+            "clear"
+          ],
+          "type": "string"
+        },
+        "rule": {
+          "description": "规则内容（add 时为规则文本；remove 时为规则文本或序号如 '1'）",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": false,
+      "script_kind": "python"
+    },
+    "script": "scripts/manage_rules.py",
+    "skill_dir": "summary_rules",
+    "tool_name": "summary_rules",
+    "version_or_ref": null
+  },
+  {
+    "description": "获取系统运行指标（CPU、内存占用、已运行时间 uptime 等）",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {},
+      "type": "object"
+    },
+    "risk_level": "low",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/get_sys_info.py",
+    "skill_dir": "system_monitor",
+    "tool_name": "get_system_info",
+    "version_or_ref": null
+  },
+  {
+    "description": "在 /Users/lhy/Desktop/Skills探索/test 沙箱目录内执行白名单终端命令",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "command": {
+          "description": "要执行的终端命令，如 'ls -la' 或 'mkdir output'",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "python"
+    },
+    "script": "scripts/run_command.py",
+    "skill_dir": "terminal",
+    "tool_name": "run_terminal",
+    "trusted": true,
+    "version_or_ref": null
+  },
+  {
+    "description": "从视频中提取指定时间点的帧画面（需要 ffmpeg）",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "out": {
+          "description": "输出图片路径",
+          "type": "string"
+        },
+        "time": {
+          "description": "时间戳，如 00:00:10",
+          "type": "string"
+        },
+        "video_path": {
+          "description": "视频文件路径",
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_path"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "shell"
+    },
+    "script": "scripts/frame.sh",
+    "skill_dir": "video-frames",
+    "tool_name": "video_frames",
+    "version_or_ref": null
+  },
+  {
+    "description": "使用视觉模型分析图片内容",
+    "install_source": null,
+    "managed_by": "local",
+    "origin": null,
+    "parameters": {
+      "properties": {
+        "image_path": {
+          "description": "图片文件路径",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "分析提示词（可选）",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_path"
+      ],
+      "type": "object"
+    },
+    "risk_level": "high",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": false,
+      "script_kind": "python"
+    },
+    "script": "scripts/analyze_image.py",
+    "skill_dir": "vision_analyze",
+    "tool_name": "vision_analyze",
+    "version_or_ref": null
+  },
+  {
+    "adapter_entry": "logic.ts",
+    "adapter_mode": "node_tooldef",
+    "default_tool": "weather_report",
+    "description": "Weather and pollen reports for any location using free APIs. TypeScript tool: weather_report",
+    "install_source": "clawhub",
+    "managed_by": "clawhub",
+    "origin": {
+      "installedAt": 1776658465101,
+      "installedVersion": "1.0.3",
+      "registry": "https://clawhub.ai",
+      "slug": "weather-pollen",
+      "version": 1
+    },
+    "parameters": {
+      "properties": {
+        "includePollen": {
+          "description": "Include pollen data",
+          "type": "boolean"
+        },
+        "location": {
+          "description": "Location name to display (coordinates configured via env)",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "risk_level": "medium",
+    "runtime": {
+      "executable": true,
+      "execution_mode": "script",
+      "has_skill_md": true,
+      "script_kind": "node"
+    },
+    "script": "__clawhub_tooldef_adapter.mjs",
+    "skill_dir": "weather-pollen",
+    "tool_name": "weather_report",
+    "trusted": false,
+    "version_or_ref": null
+  }
+]

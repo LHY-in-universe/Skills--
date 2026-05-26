@@ -1,3 +1,4 @@
+use crate::infra::memory_store::MemoryStore;
 use anyhow::{anyhow, Context};
 use serde_json::Value;
 use shlex::split as shlex_split;
@@ -17,13 +18,19 @@ pub struct ToolService {
     project_root: PathBuf,
     skills_root: PathBuf,
     registry_path: PathBuf,
+    memory_path: PathBuf,
+    memory_store: MemoryStore,
 }
 
 impl ToolService {
     pub fn new(project_root: PathBuf) -> Self {
+        let memory_store =
+            MemoryStore::bootstrap(project_root.clone()).expect("memory store 初始化失败");
         Self {
             skills_root: project_root.join("skills"),
             registry_path: project_root.join("siliconflow/data/skill_registry.json"),
+            memory_path: project_root.join("siliconflow/data/memory.json"),
+            memory_store,
             project_root,
         }
     }
@@ -35,7 +42,6 @@ impl ToolService {
         matches!(
             name,
             "get_current_time"
-                | "get_weather"
                 | "get_system_info"
                 | "monte_carlo_integration"
                 | "summary_rules"
@@ -47,27 +53,57 @@ impl ToolService {
     /// 当前策略很保守：
     /// - 会改文件、跑命令、装包、读图等高风险能力先全部走审批
     pub fn needs_permission(&self, name: &str) -> bool {
-        matches!(
+        if matches!(
             name,
             "run_terminal" | "file_editor" | "write_python" | "pip_venv" | "vision_analyze"
-        )
+        ) {
+            return true;
+        }
+        if self.is_auto_allowed(name) {
+            return false;
+        }
+        self.registry_item(name)
+            .ok()
+            .flatten()
+            .map(|item| {
+                item.get("managed_by").and_then(|v| v.as_str()) == Some("clawhub")
+                    || item.get("risk_level").and_then(|v| v.as_str()) != Some("low")
+            })
+            .unwrap_or(false)
     }
 
     pub async fn execute(&self, name: &str, args: &Value) -> anyhow::Result<String> {
         match name {
             "get_current_time" => self.run_simple_script("clock/scripts/get_time.py").await,
-            "get_system_info" => self.run_simple_script("system_monitor/scripts/get_sys_info.py").await,
-            "get_weather" => {
-                let city = args.get("city").and_then(|v| v.as_str()).unwrap_or("上海");
-                self.run_script_args("weather/scripts/get_weather.py", &[city.to_string()])
+            "get_system_info" => {
+                self.run_simple_script("system_monitor/scripts/get_sys_info.py")
                     .await
             }
-            "summary_rules" => self
-                .run_script_args(
+            "summary_rules" => {
+                self.run_script_args(
                     "summary_rules/scripts/manage_rules.py",
-                    &[format!("--args={}", serde_json::to_string(args)?)]
+                    &[format!("--args={}", serde_json::to_string(args)?)],
                 )
-                .await,
+                .await
+            }
+            "memory_save" => {
+                let key = args
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow!("memory_save 缺少 key 参数"))?;
+                let value = args
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow!("memory_save 缺少 value 参数"))?;
+                self.save_memory_key(key, value)
+            }
+            "memory_forget" => {
+                let key = args
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow!("memory_forget 缺少 key 参数"))?;
+                self.forget_memory_key(key)
+            }
             "monte_carlo_integration" => {
                 let mut cli_args = Vec::new();
                 if let Some(method) = args.get("method").and_then(|v| v.as_str()) {
@@ -86,7 +122,8 @@ impl ToolService {
                     cli_args.push("--seed".to_string());
                     cli_args.push(seed.to_string());
                 }
-                self.run_script_args("monte_carlo/scripts/monte_carlo.py", &cli_args).await
+                self.run_script_args("monte_carlo/scripts/monte_carlo.py", &cli_args)
+                    .await
             }
             "file_editor" => {
                 let mut cli_args = Vec::new();
@@ -114,12 +151,22 @@ impl ToolService {
                     cli_args.push("--new".to_string());
                     cli_args.push(newv.to_string());
                 }
-                self.run_script_args("file_editor/scripts/edit_file.py", &cli_args).await
+                self.run_script_args("file_editor/scripts/edit_file.py", &cli_args)
+                    .await
             }
             "write_python" => {
-                let folder = args.get("folder").and_then(|v| v.as_str()).unwrap_or_default();
-                let file = args.get("file").and_then(|v| v.as_str()).unwrap_or_default();
-                let content = args.get("content").and_then(|v| v.as_str()).unwrap_or_default();
+                let folder = args
+                    .get("folder")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let file = args
+                    .get("file")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let content = args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
                 self.run_script_args(
                     "python_writer/scripts/write_python.py",
                     &[
@@ -137,7 +184,7 @@ impl ToolService {
                     .ok_or_else(|| anyhow!("run_terminal 缺少 command 参数"))?;
                 self.execute_terminal_command(command).await
             }
-            _ => Err(anyhow!("unknown_tool")),
+            _ => self.execute_registry_tool(name, args).await,
         }
     }
 
@@ -160,6 +207,14 @@ impl ToolService {
             if !enabled_names.iter().any(|n| n == name) {
                 continue;
             }
+            if item
+                .get("runtime")
+                .and_then(|v| v.get("executable"))
+                .and_then(|v| v.as_bool())
+                == Some(false)
+            {
+                continue;
+            }
             out.push(serde_json::json!({
                 "type": "function",
                 "function": {
@@ -173,6 +228,105 @@ impl ToolService {
             }));
         }
         Ok(out)
+    }
+
+    /// 构造 prompt 注入版的工具调用说明。
+    ///
+    /// 与 function calling 并行使用：模型既可以返回原生 `tool_calls`，
+    /// 也可以按这里约定的 `<tool_call>JSON</tool_call>` 文本块发起调用。
+    pub fn prompt_injection_system_prompt(
+        &self,
+        enabled_names: &[String],
+    ) -> anyhow::Result<Option<String>> {
+        if enabled_names.is_empty() || !self.registry_path.exists() {
+            return Ok(None);
+        }
+        let text = std::fs::read_to_string(&self.registry_path)
+            .with_context(|| format!("读取技能注册表失败: {}", self.registry_path.display()))?;
+        let raw: Value = serde_json::from_str(&text)?;
+        let items = raw.as_array().cloned().unwrap_or_default();
+        let catalog = items
+            .into_iter()
+            .filter_map(|item| {
+                let name = item.get("tool_name").and_then(|v| v.as_str())?;
+                if !enabled_names.iter().any(|n| n == name) {
+                    return None;
+                }
+                let description = item
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let parameters = item.get("parameters").cloned().unwrap_or_else(|| {
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {}
+                    })
+                });
+                Some(format!(
+                    "- {}: {}\n  parameters={}",
+                    name,
+                    description,
+                    serde_json::to_string(&parameters).unwrap_or_else(|_| "{}".to_string())
+                ))
+            })
+            .collect::<Vec<_>>();
+        if catalog.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(format!(
+            "可用技能如下：\n{}\n\n你可以同时使用两种技能调用方式：\n1. 优先使用原生 function calling / tool_calls。\n2. 若当前模型对原生 tools 支持不稳定，可以直接输出一个或多个如下文本块，由后端执行：\n<tool_call>{{\"name\":\"技能名\",\"arguments\":{{...}}}}</tool_call>\n要求：\n- 只能使用上面列出的技能。\n- 若输出 <tool_call> 块，则该轮不要输出其他解释性正文。\n- arguments 必须是合法 JSON 对象。\n- 如无需调用技能，直接正常回答即可。",
+            catalog.join("\n")
+        )))
+    }
+
+    fn load_memory_file(&self) -> anyhow::Result<serde_json::Map<String, Value>> {
+        if !self.memory_path.exists() {
+            return Ok(serde_json::Map::new());
+        }
+        let text = std::fs::read_to_string(&self.memory_path)
+            .with_context(|| format!("读取记忆文件失败: {}", self.memory_path.display()))?;
+        let value = serde_json::from_str::<Value>(&text)
+            .unwrap_or_else(|_| Value::Object(Default::default()));
+        Ok(value.as_object().cloned().unwrap_or_default())
+    }
+
+    fn save_memory_file(&self, map: &serde_json::Map<String, Value>) -> anyhow::Result<()> {
+        if let Some(parent) = self.memory_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(
+            &self.memory_path,
+            serde_json::to_string_pretty(&Value::Object(map.clone()))?,
+        )
+        .with_context(|| format!("写入记忆文件失败: {}", self.memory_path.display()))?;
+        Ok(())
+    }
+
+    fn save_memory_key(&self, key: &str, value: &str) -> anyhow::Result<String> {
+        let mut map = self.load_memory_file()?;
+        map.insert(key.to_string(), Value::String(value.to_string()));
+        self.save_memory_file(&map)?;
+        self.memory_store.insert(
+            None,
+            "memory_save",
+            &serde_json::json!({ "key": key, "value": value }),
+        )?;
+        Ok(serde_json::json!({ "ok": true, "key": key, "value": value }).to_string())
+    }
+
+    fn forget_memory_key(&self, key: &str) -> anyhow::Result<String> {
+        let mut map = self.load_memory_file()?;
+        if map.remove(key).is_some() {
+            self.save_memory_file(&map)?;
+            self.memory_store
+                .insert(None, "memory_forget", &serde_json::json!({ "key": key }))?;
+            Ok(serde_json::json!({ "ok": true, "deleted": key }).to_string())
+        } else {
+            Ok(
+                serde_json::json!({ "ok": false, "error": format!("记忆中没有键 '{}'", key) })
+                    .to_string(),
+            )
+        }
     }
 
     async fn run_simple_script(&self, relative: &str) -> anyhow::Result<String> {
@@ -198,6 +352,131 @@ impl ToolService {
             return Ok(stderr);
         }
         Ok(String::new())
+    }
+
+    async fn execute_registry_tool(&self, name: &str, args: &Value) -> anyhow::Result<String> {
+        let item = self
+            .registry_item(name)?
+            .ok_or_else(|| anyhow!("unknown_tool"))?;
+        if item
+            .get("runtime")
+            .and_then(|v| v.get("executable"))
+            .and_then(|v| v.as_bool())
+            == Some(false)
+        {
+            return Err(anyhow!("tool_not_executable"));
+        }
+
+        let skill_dir = item
+            .get("skill_dir")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("registry_missing_skill_dir"))?;
+        let script = item
+            .get("script")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("registry_missing_script"))?;
+        let script_path = self.skills_root.join(skill_dir).join(script);
+        self.run_script_path(&script_path, args).await
+    }
+
+    fn registry_item(&self, name: &str) -> anyhow::Result<Option<Value>> {
+        if !self.registry_path.exists() {
+            return Ok(None);
+        }
+        let text = std::fs::read_to_string(&self.registry_path)
+            .with_context(|| format!("读取技能注册表失败: {}", self.registry_path.display()))?;
+        let raw: Value = serde_json::from_str(&text)?;
+        Ok(raw
+            .as_array()
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("tool_name").and_then(|v| v.as_str()) == Some(name))
+            })
+            .cloned())
+    }
+
+    async fn run_script_path(&self, script_path: &PathBuf, args: &Value) -> anyhow::Result<String> {
+        let script = script_path.to_string_lossy();
+        let mut command = if script.ends_with(".py") {
+            let mut command = Command::new("python3");
+            command.arg(script_path);
+            command
+        } else if script.ends_with(".ts") {
+            self.ensure_node_dependencies(script_path).await?;
+            let mut command = Command::new("node");
+            command.arg("--experimental-strip-types");
+            command.arg(script_path);
+            command
+        } else if script.ends_with(".js") || script.ends_with(".mjs") || script.ends_with(".cjs") {
+            self.ensure_node_dependencies(script_path).await?;
+            let mut command = Command::new("node");
+            command.arg(script_path);
+            command
+        } else if script.ends_with(".sh") || script.ends_with(".bash") || script.ends_with(".zsh") {
+            let mut command = Command::new("bash");
+            command.arg(script_path);
+            command
+        } else {
+            return Err(anyhow!("unsupported_script_type"));
+        };
+
+        if !args.is_null() && args != &serde_json::json!({}) {
+            command.arg(format!("--args={}", serde_json::to_string(args)?));
+            command.env("SKILL_ARGS_JSON", serde_json::to_string(args)?);
+        }
+
+        let output = command
+            .current_dir(&self.project_root)
+            .output()
+            .await
+            .with_context(|| format!("执行工具脚本失败: {}", script_path.display()))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if !stdout.is_empty() {
+            return Ok(stdout);
+        }
+        if !stderr.is_empty() {
+            return Ok(stderr);
+        }
+        Ok(String::new())
+    }
+
+    async fn ensure_node_dependencies(&self, script_path: &PathBuf) -> anyhow::Result<()> {
+        let Some(skill_dir) = script_path.parent() else {
+            return Ok(());
+        };
+        let package_json = skill_dir.join("package.json");
+        if !package_json.exists() {
+            return Ok(());
+        }
+        let node_modules = skill_dir.join("node_modules");
+        if node_modules.exists() {
+            return Ok(());
+        }
+
+        tracing::info!(
+            skill_dir = %skill_dir.display(),
+            "installing node dependencies for skill"
+        );
+        let output = Command::new("npm")
+            .arg("install")
+            .arg("--no-fund")
+            .arg("--no-audit")
+            .current_dir(skill_dir)
+            .output()
+            .await
+            .with_context(|| format!("安装 Node 依赖失败: {}", skill_dir.display()))?;
+
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let message = if stderr.is_empty() { stdout } else { stderr };
+            return Err(anyhow!("npm install failed: {}", message));
+        }
+
+        Ok(())
     }
 
     /// Rust 原生终端命令执行器。
@@ -248,7 +527,10 @@ impl ToolService {
         if base_cmd == "python3" {
             for arg in parts.iter().skip(1) {
                 if arg.starts_with('-') {
-                    return Err(anyhow!("python3 不允许使用 '{}' 参数，只能直接运行 .py 文件", arg));
+                    return Err(anyhow!(
+                        "python3 不允许使用 '{}' 参数，只能直接运行 .py 文件",
+                        arg
+                    ));
                 }
             }
             if parts.get(1).map(|s| s.ends_with(".py")) != Some(true) {

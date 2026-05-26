@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "router_model": "Qwen/Qwen3.5-4B",
-  "summary_model": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
+  "router_model": "functiongemma",
+  "summary_model": "qwen2.5:0.5b",
   "tiers": {
-    "easy": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
-    "hard": "NVIDIA-Llama-3.3-Nemotron-Super-49B",
-    "medium": "NVIDIA-Llama-3.3-Nemotron-Super-49B"
+    "easy": "DeepSeek-Chat",
+    "hard": "kimi/kimi-code",
+    "medium": "nvidia/llama-3.3-nemotron-super-49b-v1"
   }
 }

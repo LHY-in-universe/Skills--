@@ -57,7 +57,19 @@
       "WebFetch(domain:k2-fsa.github.io)",
       "Bash(otool -l target/release/skills-rust-backend)",
       "Bash(otool -L target/release/skills-rust-backend)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(find /Users/lhy/Desktop/Skills探索 -name \"__pycache__\" -type d -exec rm -rf {} +)",
+      "Bash(awk -F: '{print $2}')",
+      "Bash(curl -s http://127.0.0.1:18000/api/health)",
+      "Bash(curl -s -X POST http://127.0.0.1:18000/api/chat -H 'Content-Type: application/json' -d '{\"message\": \"北京天气怎么样？\", \"stream\": false}')",
+      "Bash(curl -s http://127.0.0.1:18000/)",
+      "Bash(curl *)",
+      "Bash(pkill -f \"skills-rust-backend\")",
+      "Bash(xargs -0 '-I{}' curl -s -X POST http://127.0.0.1:18000/api/chat -H 'Content-Type: application/json' -d '{\"user_input\": \"你好\", \"stream\": false}')",
+      "Bash(sqlite3 *)",
+      "Bash(kill 16130)",
+      "Bash(cargo run *)",
+      "Bash(:)"
     ]
   }
 }

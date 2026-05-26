@@ -1,0 +1,16 @@
+{
+  "tool_name": "memory_forget",
+  "skill_dir": "memory_forget",
+  "script": "scripts/memory_forget.py",
+  "description": "删除一条长期记忆。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "要删除的记忆键名"
+      }
+    },
+    "required": ["key"]
+  }
+}

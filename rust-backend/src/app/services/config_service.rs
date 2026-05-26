@@ -74,20 +74,29 @@ impl ConfigService {
             .map(|m| ProviderDisplay::from_provider_id(&m.provider))
             .unwrap_or(ProviderDisplay::SiliconFlow);
         let has_api_key = current_model
-            .and_then(|m| self.resolve_api_key(&m.provider))
-            .is_some();
+            .map(|m| {
+                snapshot
+                    .providers
+                    .get(&m.provider)
+                    .map(|p| p.required_env_keys.is_empty())
+                    .unwrap_or(false)
+                    || self.resolve_api_key(&m.provider).is_some()
+            })
+            .unwrap_or(false);
 
         ConfigView {
             api_url: current_model
                 .and_then(|m| m.api_url_override.clone())
-                .unwrap_or_else(|| self.default_api_url(current_model.map(|m| m.provider.as_str()))),
+                .unwrap_or_else(|| {
+                    self.default_api_url(current_model.map(|m| m.provider.as_str()))
+                }),
             current_model: current_model_name.to_string(),
-            effective_model_id: current_model
-                .map(|m| m.id.clone())
-                .unwrap_or_default(),
+            effective_model_id: current_model.map(|m| m.id.clone()).unwrap_or_default(),
             effective_api_url: current_model
                 .and_then(|m| m.api_url_override.clone())
-                .unwrap_or_else(|| self.default_api_url(current_model.map(|m| m.provider.as_str()))),
+                .unwrap_or_else(|| {
+                    self.default_api_url(current_model.map(|m| m.provider.as_str()))
+                }),
             effective_provider: provider.label().to_string(),
             has_api_key,
         }
@@ -131,19 +140,19 @@ impl ConfigService {
     }
 
     pub fn snapshot(&self) -> RuntimeSnapshot {
-        self.snapshot
-            .read()
-            .expect("配置快照读锁已中毒")
-            .clone()
+        self.snapshot.read().expect("配置快照读锁已中毒").clone()
     }
 
     pub fn resolve_api_key(&self, provider_id: &str) -> Option<String> {
         let snapshot = self.snapshot();
         let provider = snapshot.providers.get(provider_id)?;
-        provider
-            .required_env_keys
-            .iter()
-            .find_map(|key| snapshot.env.get(key).cloned().filter(|v| !v.trim().is_empty()))
+        provider.required_env_keys.iter().find_map(|key| {
+            snapshot
+                .env
+                .get(key)
+                .cloned()
+                .filter(|v| !v.trim().is_empty())
+        })
     }
 
     pub fn default_api_url(&self, provider_id: Option<&str>) -> String {

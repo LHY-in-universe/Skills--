@@ -10,15 +10,15 @@ use crate::app::services::chat::permission::PendingPermission;
 use crate::app::services::chat::policy::{DefaultFailoverPolicy, FailoverPolicy};
 use crate::app::services::chat::run_phase::{emit, RunPhase};
 use crate::app::services::chat::tool_loop::{
-    accumulate_tool_call_deltas, parse_tool_call, tool_call_id,
+    accumulate_tool_call_deltas, extract_prompt_tool_calls, parse_tool_call, tool_call_id,
 };
 use crate::app::services::chat::usage::UsageSnapshot;
-use crate::app::services::chat_service::{ChatService, PreparedChatRun};
+use crate::app::services::chat_service::{ChatService, PreparedChatRun, ToolCallMode};
 use crate::domain::run::{RunError, RunStatus};
-use std::sync::Arc;
 use futures_util::StreamExt as FuturesStreamExt;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// 执行器对外发事件的 sink。
@@ -30,10 +30,16 @@ pub type EventTx = mpsc::Sender<Value>;
 /// 把内部 `anyhow::Error` 归并成 `RunError`。
 ///
 /// 保留 `classify_upstream_error` 的分类结果，以便 handler 层按变体平铺到 SSE。
-fn to_run_error(err: anyhow::Error) -> RunError {
+fn to_run_error(err: anyhow::Error, prepared: &PreparedChatRun) -> RunError {
     let msg = err.to_string();
     let class = classify_upstream_error(&msg);
-    RunError::Upstream(class.to_string())
+    RunError::Upstream {
+        class: class.to_string(),
+        message: msg,
+        provider: prepared.provider.clone(),
+        model: prepared.model_id.clone(),
+        api_url: prepared.api_url.clone(),
+    }
 }
 
 #[derive(Clone)]
@@ -56,6 +62,7 @@ impl ChatExecutor {
         mut prepared: PreparedChatRun,
         tx: EventTx,
     ) -> Result<(), RunError> {
+        let started = std::time::Instant::now();
         let chat_service = &self.chat_service;
         let conv_id = prepared.conversation_id.clone();
         chat_service.set_run_status(&conv_id, RunStatus::Running);
@@ -73,14 +80,18 @@ impl ChatExecutor {
             Err(_) => RunStatus::Done,
         };
         chat_service.set_run_status(&conv_id, next_status);
-        result.map_err(to_run_error)
+        tracing::debug!(
+            conversation_id = %conv_id,
+            model = %prepared.model_id,
+            provider = %prepared.provider,
+            final_status = %next_status.as_str(),
+            elapsed_ms = started.elapsed().as_millis() as i64,
+            "chat run finished"
+        );
+        result.map_err(|err| to_run_error(err, &prepared))
     }
 
-    async fn run_loop(
-        &self,
-        prepared: &mut PreparedChatRun,
-        tx: EventTx,
-    ) -> anyhow::Result<()> {
+    async fn run_loop(&self, prepared: &mut PreparedChatRun, tx: EventTx) -> anyhow::Result<()> {
         let chat_service = &self.chat_service;
         let mut request_messages = prepared.messages.clone();
         let mut round = 0usize;
@@ -89,7 +100,34 @@ impl ChatExecutor {
 
         loop {
             round += 1;
+            let round_started = std::time::Instant::now();
+            let tool_call_mode = match prepared.tool_call_mode {
+                ToolCallMode::Function => "function",
+                ToolCallMode::Prompt => "prompt",
+            };
+            tracing::debug!(
+                conversation_id = %prepared.conversation_id,
+                model = %prepared.model_id,
+                provider = %prepared.provider,
+                round = round,
+                tool_call_mode = %tool_call_mode,
+                audit_retry_count = audit_retry_count,
+                failover_idx = failover_idx,
+                request_message_count = request_messages.len(),
+                "chat round started"
+            );
             if round > 4 {
+                tracing::warn!(
+                    conversation_id = %prepared.conversation_id,
+                    model = %prepared.model_id,
+                    provider = %prepared.provider,
+                    round = round,
+                    audit_retry_count = audit_retry_count,
+                    prompt_fallback_attempted = prepared.prompt_fallback_attempted,
+                    tool_call_mode = %tool_call_mode,
+                    request_message_count = request_messages.len(),
+                    "tool loop limit reached"
+                );
                 emit(
                     &tx,
                     RunPhase::Error {
@@ -102,13 +140,27 @@ impl ChatExecutor {
             }
 
             let response = match chat_service
-                .send_stream_request(&prepared, &request_messages)
+                .send_stream_request(prepared, &request_messages)
                 .await
             {
                 Ok(resp) => resp,
                 Err(err) => {
                     let err_class = classify_upstream_error(&err.to_string());
-                    let run_err = RunError::Upstream(err_class.to_string());
+                    tracing::warn!(
+                        model = %prepared.model_id,
+                        provider = %prepared.provider,
+                        api_url = %prepared.api_url,
+                        error_class = %err_class,
+                        error = %err,
+                        "upstream request failed"
+                    );
+                    let run_err = RunError::Upstream {
+                        class: err_class.to_string(),
+                        message: err.to_string(),
+                        provider: prepared.provider.clone(),
+                        model: prepared.model_id.clone(),
+                        api_url: prepared.api_url.clone(),
+                    };
                     let picked = self.failover_policy.next_candidate(
                         &run_err,
                         &prepared.fallback_chain,
@@ -126,6 +178,14 @@ impl ChatExecutor {
                             )
                             .await;
                         }
+                        tracing::error!(
+                            model = %prepared.model_id,
+                            provider = %prepared.provider,
+                            api_url = %prepared.api_url,
+                            error_class = %err_class,
+                            error = %err,
+                            "upstream request failed and no failover candidate succeeded"
+                        );
                         return Err(err);
                     };
                     failover_idx = next_idx;
@@ -155,6 +215,7 @@ impl ChatExecutor {
             let mut aborted = false;
             let mut tool_calls_acc: BTreeMap<usize, Value> = BTreeMap::new();
             let mut done_seen = false;
+            let mut raw_chunk_debug_count = 0usize;
 
             while let Some(item) = FuturesStreamExt::next(&mut stream).await {
                 let bytes = item?;
@@ -182,6 +243,21 @@ impl ChatExecutor {
                     let Ok(data) = serde_json::from_str::<Value>(payload) else {
                         continue;
                     };
+                    if prepared.provider == "nvidia" && raw_chunk_debug_count < 3 {
+                        raw_chunk_debug_count += 1;
+                        let compact =
+                            serde_json::to_string(&data).unwrap_or_else(|_| payload.to_string());
+                        let preview = compact.chars().take(1200).collect::<String>();
+                        tracing::debug!(
+                            conversation_id = %prepared.conversation_id,
+                            model = %prepared.model_id,
+                            provider = %prepared.provider,
+                            round = round,
+                            chunk_index = raw_chunk_debug_count,
+                            chunk_preview = %preview,
+                            "nvidia raw sse chunk"
+                        );
+                    }
 
                     if let Some(text) = data
                         .get("choices")
@@ -223,7 +299,33 @@ impl ChatExecutor {
                 }
             }
 
-            let tool_calls = tool_calls_acc.into_values().collect::<Vec<_>>();
+            let mut tool_calls = tool_calls_acc.into_values().collect::<Vec<_>>();
+            let (prompt_tool_calls, visible_rendered) = extract_prompt_tool_calls(&rendered);
+            if tool_calls.is_empty() && !prompt_tool_calls.is_empty() {
+                tracing::debug!(
+                    conversation_id = %prepared.conversation_id,
+                    model = %prepared.model_id,
+                    provider = %prepared.provider,
+                    round = round,
+                    prompt_tool_call_count = prompt_tool_calls.len(),
+                    "prompt-injected tool calls detected"
+                );
+                tool_calls = prompt_tool_calls;
+                rendered = visible_rendered;
+            }
+            tracing::debug!(
+                conversation_id = %prepared.conversation_id,
+                model = %prepared.model_id,
+                provider = %prepared.provider,
+                round = round,
+                tool_call_count = tool_calls.len(),
+                rendered_chars = rendered.chars().count(),
+                prompt_tokens = usage.prompt_tokens,
+                completion_tokens = usage.completion_tokens,
+                total_tokens = usage.total_tokens,
+                elapsed_ms = round_started.elapsed().as_millis() as i64,
+                "chat round finished"
+            );
 
             if aborted {
                 chat_service.finalize_chat(&prepared, rendered, usage, true)?;
@@ -246,8 +348,33 @@ impl ChatExecutor {
             .await;
 
             if tool_calls.is_empty() {
-                let (audit_ok, audit_reason) =
-                    chat_service.audit_answer(&prepared.query, &rendered);
+                let empty_response = rendered.trim().is_empty();
+                if prepared.tool_call_mode == ToolCallMode::Function
+                    && !prepared.prompt_fallback_attempted
+                    && empty_response
+                    && prepared
+                        .routed_tool_names
+                        .as_ref()
+                        .map(|v| !v.is_empty())
+                        .unwrap_or(false)
+                {
+                    prepared.tool_call_mode = ToolCallMode::Prompt;
+                    prepared.prompt_fallback_attempted = true;
+                    tracing::warn!(
+                        conversation_id = %prepared.conversation_id,
+                        model = %prepared.model_id,
+                        provider = %prepared.provider,
+                        round = round,
+                        request_message_count = request_messages.len(),
+                        "function calling produced no usable response, retrying with prompt tool calling"
+                    );
+                    continue;
+                }
+                let (audit_ok, audit_reason) = if prepared.tier == "easy" {
+                    (true, "skipped".to_string())
+                } else {
+                    chat_service.audit_answer(&prepared.query, &rendered)
+                };
                 emit(
                     &tx,
                     RunPhase::Audit {
@@ -259,6 +386,17 @@ impl ChatExecutor {
                 .await;
                 if !audit_ok && audit_retry_count < prepared.audit_retry_cap {
                     audit_retry_count += 1;
+                    tracing::warn!(
+                        conversation_id = %prepared.conversation_id,
+                        model = %prepared.model_id,
+                        provider = %prepared.provider,
+                        round = round,
+                        next_audit_retry_count = audit_retry_count,
+                        audit_retry_cap = prepared.audit_retry_cap,
+                        audit_reason = %audit_reason,
+                        rendered_chars = rendered.chars().count(),
+                        "audit failed, retrying with self-correction prompt"
+                    );
                     request_messages.push(serde_json::json!({
                         "role": "user",
                         "content": format!("请自我纠正上一版回答：{}。原问题：{}", audit_reason, prepared.query)
@@ -272,10 +410,7 @@ impl ChatExecutor {
                     emit(
                         &tx,
                         RunPhase::Error {
-                            content: format!(
-                                "回答质量检查未通过且超过重试上限：{}",
-                                audit_reason
-                            ),
+                            content: format!("回答质量检查未通过且超过重试上限：{}", audit_reason),
                             error_class: "regenerate_exhausted",
                         },
                     )
@@ -319,6 +454,19 @@ impl ChatExecutor {
                     .cloned()
                     .unwrap_or_default(),
             )?;
+            tracing::debug!(
+                conversation_id = %prepared.conversation_id,
+                model = %prepared.model_id,
+                provider = %prepared.provider,
+                round = round,
+                tool_call_count = tool_calls.len(),
+                tool_names = %tool_calls
+                    .iter()
+                    .map(|tool_call| parse_tool_call(tool_call).0)
+                    .collect::<Vec<_>>()
+                    .join(","),
+                "tool calls detected, continuing to tool execution"
+            );
 
             for (tool_idx, tool_call) in tool_calls.iter().cloned().enumerate() {
                 let (name, args) = parse_tool_call(&tool_call);
@@ -350,10 +498,30 @@ impl ChatExecutor {
 
                 emit(&tx, RunPhase::ToolStart { name: name.clone() }).await;
 
-                let result = chat_service
+                let result = match chat_service
                     .execute_tool_tracked(Some(&prepared.conversation_id), &name, &args)
                     .await
-                    .unwrap_or_else(|err| err.to_string());
+                {
+                    Ok(text) => text,
+                    Err(err) => {
+                        tracing::warn!(
+                            conversation_id = %prepared.conversation_id,
+                            tool_name = %name,
+                            tool_args = %serde_json::to_string(&args).unwrap_or_default(),
+                            error = %err,
+                            "tool execution failed"
+                        );
+                        emit(
+                            &tx,
+                            RunPhase::Error {
+                                content: format!("工具 `{}` 执行失败: {}", name, err),
+                                error_class: "tool_error",
+                            },
+                        )
+                        .await;
+                        err.to_string()
+                    }
+                };
                 let call_id = tool_call_id(&tool_call);
 
                 request_messages.push(serde_json::json!({
@@ -371,6 +539,15 @@ impl ChatExecutor {
 
                 emit(&tx, RunPhase::ToolDone { name }).await;
             }
+
+            tracing::debug!(
+                conversation_id = %prepared.conversation_id,
+                model = %prepared.model_id,
+                provider = %prepared.provider,
+                round = round,
+                request_message_count = request_messages.len(),
+                "tool execution round completed, continuing with tool follow-up request"
+            );
         }
     }
 
@@ -396,36 +573,44 @@ impl ChatExecutor {
                     "content": denied
                 }));
                 chat_service
-                    .append_tool_message(
-                        &pending.conversation_id,
-                        &call_id,
-                        &name,
-                        &args,
-                        denied,
-                    )
-                    .map_err(to_run_error)?;
+                    .append_tool_message(&pending.conversation_id, &call_id, &name, &args, denied)
+                    .map_err(|err| to_run_error(err, &pending.prepared))?;
                 break;
             }
 
             emit(&tx, RunPhase::ToolStart { name: name.clone() }).await;
-            let result = chat_service
+            let result = match chat_service
                 .execute_tool_tracked(Some(&pending.conversation_id), &name, &args)
                 .await
-                .unwrap_or_else(|err| err.to_string());
+            {
+                Ok(text) => text,
+                Err(err) => {
+                    tracing::warn!(
+                        conversation_id = %pending.conversation_id,
+                        tool_name = %name,
+                        tool_args = %serde_json::to_string(&args).unwrap_or_default(),
+                        error = %err,
+                        "tool execution failed after permission resume"
+                    );
+                    emit(
+                        &tx,
+                        RunPhase::Error {
+                            content: format!("工具 `{}` 执行失败: {}", name, err),
+                            error_class: "tool_error",
+                        },
+                    )
+                    .await;
+                    err.to_string()
+                }
+            };
             request_messages.push(serde_json::json!({
                 "role": "tool",
                 "tool_call_id": call_id,
                 "content": result
             }));
             chat_service
-                .append_tool_message(
-                    &pending.conversation_id,
-                    &call_id,
-                    &name,
-                    &args,
-                    result,
-                )
-                .map_err(to_run_error)?;
+                .append_tool_message(&pending.conversation_id, &call_id, &name, &args, result)
+                .map_err(|err| to_run_error(err, &pending.prepared))?;
             emit(&tx, RunPhase::ToolDone { name }).await;
         }
 

@@ -1,1 +1,14 @@
-{}
+{
+  "version": 2,
+  "global": {
+    "calls": 0,
+    "prompt": 0,
+    "completion": 0,
+    "total": 0,
+    "errors": { "count": 0, "by_class": {} },
+    "failover": { "count": 0, "by_type": {}, "success": 0, "exhausted": 0 },
+    "latency": { "count": 0, "sum_ms": 0, "avg_ms": 0, "p95_ms_est": 0, "max_ms": 0 },
+    "by_type": {}
+  },
+  "daily": {}
+}

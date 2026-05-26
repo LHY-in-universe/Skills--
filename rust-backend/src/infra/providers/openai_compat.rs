@@ -10,18 +10,16 @@ use serde_json::{json, Value};
 pub struct OpenAiCompatDriver;
 
 impl ProviderDriver for OpenAiCompatDriver {
-    fn build_payload(
-        &self,
-        model_id: &str,
-        messages: &[Value],
-        tools: &[Value],
-    ) -> Value {
-        json!({
+    fn build_payload(&self, model_id: &str, messages: &[Value], tools: &[Value]) -> Value {
+        let mut payload = json!({
             "model": model_id,
             "messages": messages,
             "stream": true,
             "stream_options": { "include_usage": true },
-            "tools": tools,
-        })
+        });
+        if !tools.is_empty() {
+            payload["tools"] = json!(tools);
+        }
+        payload
     }
 }

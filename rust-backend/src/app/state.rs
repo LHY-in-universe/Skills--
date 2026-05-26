@@ -1,6 +1,7 @@
 use crate::app::run_registry::RunRegistry;
 use crate::app::services::chat::executor::ChatExecutor;
 use crate::app::services::chat_service::ChatService;
+use crate::app::services::clawhub_service::ClawhubService;
 use crate::app::services::config_service::ConfigService;
 use crate::app::services::conversation_service::ConversationService;
 use crate::app::services::tool_service::ToolService;
@@ -18,6 +19,7 @@ use std::path::PathBuf;
 pub struct AppState {
     pub project_root: PathBuf,
     pub config_service: ConfigService,
+    pub clawhub_service: ClawhubService,
     pub conversation_service: ConversationService,
     pub tool_service: ToolService,
     pub chat_service: ChatService,
@@ -28,8 +30,15 @@ pub struct AppState {
 impl AppState {
     pub async fn bootstrap(project_root: PathBuf) -> anyhow::Result<Self> {
         let config_service = ConfigService::load(project_root.clone())?;
+
+        // 启动时扫描 skills/ 目录，自动同步 skill_registry.json
+        if let Err(e) = config_service.scan_and_sync_skills() {
+            tracing::warn!("技能扫描失败（不影响启动）: {}", e);
+        }
+
         let conversation_store = ConversationStore::bootstrap(project_root.clone())?;
         let conversation_service = ConversationService::new(conversation_store);
+        let clawhub_service = ClawhubService::new(project_root.clone(), config_service.clone());
         let tool_service = ToolService::new(project_root.clone());
         let run_registry = RunRegistry::new();
         let chat_service = ChatService::new(
@@ -44,6 +53,7 @@ impl AppState {
         Ok(Self {
             project_root,
             config_service,
+            clawhub_service,
             conversation_service,
             tool_service,
             chat_service,

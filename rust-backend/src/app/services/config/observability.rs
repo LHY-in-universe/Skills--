@@ -74,7 +74,19 @@ impl ConfigService {
     pub fn security_audit(&self) -> anyhow::Result<Value> {
         let snapshot = self.snapshot();
         let mut findings = Vec::new();
-        for provider in snapshot.providers.values() {
+        let used_providers = snapshot
+            .models
+            .values()
+            .map(|model| model.provider.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        for provider in snapshot
+            .providers
+            .values()
+            .filter(|provider| used_providers.contains(&provider.id))
+        {
+            if provider.required_env_keys.is_empty() {
+                continue;
+            }
             let has_key = provider.required_env_keys.iter().any(|key| {
                 snapshot
                     .env
@@ -132,8 +144,14 @@ impl ConfigService {
             .and_then(|v| v.get("failover"))
             .cloned()
             .unwrap_or_else(|| serde_json::json!({}));
-        let success = failover.get("success").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let exhausted = failover.get("exhausted").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let success = failover
+            .get("success")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let exhausted = failover
+            .get("exhausted")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
         let total = success + exhausted;
         let success_rate = if total > 0.0 {
             (success / total * 100.0).round() as i64

@@ -1,11 +1,33 @@
 {
   "DeepSeek-Chat": {
-    "enabled": false,
+    "enabled": true,
     "id": "deepseek-chat",
     "provider": "deepseek"
   },
+  "FunctionGemma": {
+    "enabled": true,
+    "id": "functiongemma",
+    "provider": "local",
+    "api_url": "http://localhost:11434/v1/chat/completions",
+    "capabilities": {
+      "chat": true,
+      "tools": true,
+      "vision": false
+    }
+  },
+  "Qwen2.5-0.5B": {
+    "enabled": true,
+    "id": "qwen2.5:0.5b",
+    "provider": "local",
+    "api_url": "http://localhost:11434/v1/chat/completions",
+    "capabilities": {
+      "chat": true,
+      "tools": false,
+      "vision": false
+    }
+  },
   "GLM-5": {
-    "enabled": false,
+    "enabled": true,
     "id": "Pro/zai-org/GLM-5",
     "provider": "siliconflow"
   },
@@ -13,6 +35,22 @@
     "enabled": false,
     "id": "kimi/kimi-code",
     "provider": "kimi"
+  },
+  "NVIDIA-Llama-3.3-Nemotron-Super-49B": {
+    "enabled": false,
+    "id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "provider": "nvidia"
+  },
+  "Qwen3-VL-2B-Ollama-Q8": {
+    "api_url": "http://localhost:11434/v1/chat/completions",
+    "capabilities": {
+      "chat": true,
+      "tools": false,
+      "vision": true
+    },
+    "enabled": false,
+    "id": "qwen3-vl:2b-instruct-q8_0",
+    "provider": "local"
   },
   "Qwen3.5-27B": {
     "enabled": false,
@@ -23,10 +61,5 @@
     "enabled": false,
     "id": "Qwen/Qwen3.5-4B",
     "provider": "siliconflow"
-  },
-  "NVIDIA-Llama-3.3-Nemotron-Super-49B": {
-    "enabled": true,
-    "id": "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "provider": "nvidia"
   }
 }

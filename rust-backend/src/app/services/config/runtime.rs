@@ -64,5 +64,4 @@ impl ConfigService {
             .filter(|v| !v.trim().is_empty())
             .unwrap_or_else(|| "ws://127.0.0.1:8000/api/voice/bridge".to_string())
     }
-
 }

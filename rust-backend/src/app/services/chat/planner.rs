@@ -10,9 +10,17 @@ pub fn should_plan(runtime: &RuntimeSettings, query: &str, tier: &str) -> bool {
         return true;
     }
     q.chars().count() >= 80
-        && ["并且", "同时", "步骤", "方案", "implement", "plan", "optimize"]
-            .iter()
-            .any(|k| q.to_lowercase().contains(&k.to_lowercase()))
+        && [
+            "并且",
+            "同时",
+            "步骤",
+            "方案",
+            "implement",
+            "plan",
+            "optimize",
+        ]
+        .iter()
+        .any(|k| q.to_lowercase().contains(&k.to_lowercase()))
 }
 
 /// 构造计划步骤。

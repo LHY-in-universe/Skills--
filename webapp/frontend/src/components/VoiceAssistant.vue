@@ -30,6 +30,7 @@ const micStream = ref(null)
 const sourceNode = ref(null)
 const processorNode = ref(null)
 const voiceAssistantDraftIdx = ref(-1)
+const isPanelOpen = ref(false)
 
 // UI Helpers
 const statusColors = {
@@ -157,6 +158,9 @@ const connectWS = () => {
           queueLength: audioQueue.value.length,
         }
         break
+      case 'debug_config_ack':
+        console.log('voice debug config:', msg)
+        break
     }
   }
 
@@ -256,6 +260,10 @@ const enableVoice = () => {
 const toggleVoiceInput = async () => {
   if (voiceEnabled.value) await disableVoice()
   else enableVoice()
+}
+
+const togglePanel = () => {
+  isPanelOpen.value = !isPanelOpen.value
 }
 
 const applyDebugConfig = () => {
@@ -367,43 +375,54 @@ onUnmounted(() => {
 
 <template>
   <div class="voice-assistant-ship" :class="status">
-    <button class="voice-toggle-btn" @click="toggleVoiceInput">
-      {{ voiceEnabled ? '停止语音输入' : '启动语音输入' }}
-    </button>
-    <label class="voice-debug-toggle">
-      <input type="checkbox" v-model="debugBypassWakeword" @change="applyDebugConfig" />
-      调试模式（跳过唤醒词）
-    </label>
-    <button class="voice-end-btn" :disabled="!voiceEnabled" @click="endCurrentUtterance">
-      结束本次语音
-    </button>
-    <button class="voice-end-btn danger" :disabled="!voiceEnabled" @click="abortVoiceChat">
-      中断语音对话
-    </button>
-    <div v-if="debugBypassWakeword" class="voice-debug-box">
-      <input
-        v-model="debugInjectText"
-        class="voice-debug-input"
-        type="text"
-        placeholder="调试注入文本，不用说话也能测试整条链"
-        @keydown.enter.prevent="sendDebugInjectText"
-      />
-      <button class="voice-debug-send" :disabled="!voiceEnabled || !debugInjectText.trim()" @click="sendDebugInjectText">
-        注入文本
+    <div class="voice-anchor">
+      <button class="voice-menu-btn" @click="togglePanel">
+        <span class="voice-menu-text">语音</span>
+        <span class="voice-menu-state">{{ isPanelOpen ? '收起' : '展开' }}</span>
       </button>
-    </div>
-    <div v-if="voiceEnabled" class="voice-session-meta">
-      <span>会话: {{ voiceSession.convId || activeConversationId || '未绑定' }}</span>
-      <span>阶段: {{ voiceSession.phase || status }}</span>
-      <span>来源: {{ voiceSession.source || 'ui' }}</span>
-    </div>
-    <div class="orb-container">
-      <div class="orb" :style="{ backgroundColor: statusColors[status] }"></div>
-      <div v-if="status === 'listening' || status === 'speaking'" class="pulses">
-        <div class="pulse"></div>
-        <div class="pulse"></div>
+      <div class="orb-container">
+        <div class="orb" :style="{ backgroundColor: statusColors[status] }"></div>
+        <div v-if="status === 'listening' || status === 'speaking'" class="pulses">
+          <div class="pulse"></div>
+          <div class="pulse"></div>
+        </div>
       </div>
     </div>
+
+    <Transition name="voice-panel-fade">
+      <div v-if="isPanelOpen" class="voice-panel">
+        <button class="voice-toggle-btn" @click="toggleVoiceInput">
+          {{ voiceEnabled ? '停止语音输入' : '启动语音输入' }}
+        </button>
+        <label class="voice-debug-toggle">
+          <input type="checkbox" v-model="debugBypassWakeword" @change="applyDebugConfig" />
+          调试模式（跳过唤醒词）
+        </label>
+        <button class="voice-end-btn" :disabled="!voiceEnabled" @click="endCurrentUtterance">
+          结束本次语音
+        </button>
+        <button class="voice-end-btn danger" :disabled="!voiceEnabled" @click="abortVoiceChat">
+          中断语音对话
+        </button>
+        <div v-if="debugBypassWakeword" class="voice-debug-box">
+          <input
+            v-model="debugInjectText"
+            class="voice-debug-input"
+            type="text"
+            placeholder="调试注入文本，不用说话也能测试整条链"
+            @keydown.enter.prevent="sendDebugInjectText"
+          />
+          <button class="voice-debug-send" :disabled="!voiceEnabled || !debugInjectText.trim()" @click="sendDebugInjectText">
+            注入文本
+          </button>
+        </div>
+        <div v-if="voiceEnabled" class="voice-session-meta">
+          <span>会话: {{ voiceSession.convId || activeConversationId || '未绑定' }}</span>
+          <span>阶段: {{ voiceSession.phase || status }}</span>
+          <span>来源: {{ voiceSession.source || 'ui' }}</span>
+        </div>
+      </div>
+    </Transition>
     
     <div v-if="transcribedText" class="voice-overlay">
       <div class="glossy-card">
@@ -416,14 +435,63 @@ onUnmounted(() => {
 
 <style scoped>
 .voice-assistant-ship {
-  position: fixed;
-  bottom: 100px;
-  right: 30px;
-  z-index: 9999;
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   pointer-events: none;
+  gap: 10px;
+}
+
+.voice-anchor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.voice-menu-btn {
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-menu-text {
+  font-size: var(--font-xs);
+  font-weight: 700;
+}
+
+.voice-menu-state {
+  font-size: var(--font-xs);
+  color: rgba(255,255,255,0.68);
+}
+
+.voice-panel {
+  pointer-events: auto;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.voice-panel-fade-enter-active,
+.voice-panel-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.voice-panel-fade-enter-from,
+.voice-panel-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .voice-toggle-btn {
@@ -434,7 +502,7 @@ onUnmounted(() => {
   color: #fff;
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   cursor: pointer;
 }
 
@@ -442,7 +510,7 @@ onUnmounted(() => {
   pointer-events: auto;
   margin-bottom: 8px;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--font-xs);
   background: rgba(0,0,0,0.45);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 8px;
@@ -460,7 +528,7 @@ onUnmounted(() => {
   color: #fff;
   border-radius: 8px;
   padding: 7px 12px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   cursor: pointer;
 }
 .voice-end-btn.danger {
@@ -486,7 +554,7 @@ onUnmounted(() => {
   color: #fff;
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .voice-debug-send {
@@ -495,7 +563,7 @@ onUnmounted(() => {
   color: #fff;
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   cursor: pointer;
 }
 
@@ -515,7 +583,7 @@ onUnmounted(() => {
 
 .voice-session-meta span {
   color: #fff;
-  font-size: 11px;
+  font-size: var(--font-xs);
   line-height: 1.2;
   background: rgba(0,0,0,0.45);
   border: 1px solid rgba(255,255,255,0.12);
@@ -580,7 +648,7 @@ onUnmounted(() => {
 }
 
 .voice-overlay {
-  margin-top: 15px;
+  margin-top: 2px;
   max-width: 300px;
   pointer-events: auto;
 }
@@ -614,10 +682,7 @@ onUnmounted(() => {
 
 .glossy-card p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-sm);
   line-height: 1.4;
 }
 </style>
-      case 'debug_config_ack':
-        console.log('voice debug config:', msg)
-        break

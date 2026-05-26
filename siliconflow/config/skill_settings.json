@@ -15,11 +15,6 @@
       "enabled": true,
       "env": {}
     },
-    "get_weather": {
-      "api_key_ref": null,
-      "enabled": true,
-      "env": {}
-    },
     "memory_forget": {
       "api_key_ref": null,
       "enabled": true,
@@ -45,6 +40,21 @@
       "enabled": true,
       "env": {}
     },
+    "self-improving-agent-cn": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "self_improving_agent_cn": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "skill_vetter": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
     "summary_rules": {
       "api_key_ref": null,
       "enabled": true,
@@ -55,7 +65,17 @@
         "id": "VISION_KEY",
         "source": "env"
       },
-      "enabled": false,
+      "enabled": true,
+      "env": {}
+    },
+    "weather-pollen": {
+      "api_key_ref": null,
+      "enabled": true,
+      "env": {}
+    },
+    "weather_report": {
+      "api_key_ref": null,
+      "enabled": true,
       "env": {}
     },
     "write_memory": {

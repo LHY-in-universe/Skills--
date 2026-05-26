@@ -16,10 +16,5 @@ use serde_json::Value;
 /// provider 真的需要不同的 SSE 分片格式时，再往这里加 `parse_chunk`。
 pub trait ProviderDriver: Send + Sync {
     /// 构造一次 Chat Completions 请求体。
-    fn build_payload(
-        &self,
-        model_id: &str,
-        messages: &[Value],
-        tools: &[Value],
-    ) -> Value;
+    fn build_payload(&self, model_id: &str, messages: &[Value], tools: &[Value]) -> Value;
 }

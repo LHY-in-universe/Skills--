@@ -49,9 +49,7 @@ impl VoiceBridge {
     where
         F: FnMut(Value) + Send,
     {
-        let prepared = self
-            .chat_service
-            .prepare_chat(&text, conv_id.as_deref())?;
+        let prepared = self.chat_service.prepare_chat(&text, conv_id.as_deref()).await?;
         let run_guard = self
             .chat_service
             .acquire_run_slot(&prepared.conversation_id)
@@ -92,13 +90,16 @@ impl VoiceBridge {
         let event_tx_exec = event_tx.clone();
         let exec_handle = tokio::spawn(async move {
             let _run_guard = run_guard;
-            if let Err(err) = executor.stream_once(prepared_clone, event_tx_exec.clone()).await {
+            if let Err(err) = executor
+                .stream_once(prepared_clone, event_tx_exec.clone())
+                .await
+            {
                 let _ = event_tx_exec
                     .send(serde_json::json!({
                         "type": "error",
                         "content": err.to_string(),
                         "error_class": match err {
-                            crate::domain::run::RunError::Upstream(ref c) => c.clone(),
+                            crate::domain::run::RunError::Upstream { ref class, .. } => class.clone(),
                             crate::domain::run::RunError::Aborted => "aborted".to_string(),
                             crate::domain::run::RunError::Tool(_) => "tool_error".to_string(),
                             crate::domain::run::RunError::PermissionDenied(_) =>
@@ -151,27 +152,21 @@ fn spawn_tts_consumer(
     tokio::spawn(async move {
         while let Some(chunk_text) = tts_rx.recv().await {
             let sink = client_tx.clone();
-            let result = edge_tts::stream_audio(
-                &chunk_text,
-                DEFAULT_TTS_VOICE,
-                |audio_bytes| {
-                    if audio_bytes.is_empty() {
-                        return;
-                    }
-                    let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_bytes);
-                    let payload = serde_json::json!({
-                        "type": "audio_stream",
-                        "data": b64,
-                    });
-                    let sink_inner = sink.clone();
-                    tokio::spawn(async move {
-                        let mut guard = sink_inner.lock().await;
-                        let _ = guard
-                            .send(Message::Text(payload.to_string().into()))
-                            .await;
-                    });
-                },
-            )
+            let result = edge_tts::stream_audio(&chunk_text, DEFAULT_TTS_VOICE, |audio_bytes| {
+                if audio_bytes.is_empty() {
+                    return;
+                }
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&audio_bytes);
+                let payload = serde_json::json!({
+                    "type": "audio_stream",
+                    "data": b64,
+                });
+                let sink_inner = sink.clone();
+                tokio::spawn(async move {
+                    let mut guard = sink_inner.lock().await;
+                    let _ = guard.send(Message::Text(payload.to_string().into())).await;
+                });
+            })
             .await;
             if let Err(err) = result {
                 tracing::warn!(error = %err, "Edge TTS 合成失败");

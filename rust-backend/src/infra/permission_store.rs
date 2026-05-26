@@ -18,9 +18,11 @@ pub struct PermissionStore {
 impl PermissionStore {
     pub fn bootstrap(project_root: PathBuf) -> Result<Self> {
         let db_path = crate::infra::sqlite::runtime_db_path(&project_root);
-        let legacy_path =
-            project_root.join("siliconflow/config/permission_settings.json");
-        let store = Self { db_path, legacy_path };
+        let legacy_path = project_root.join("siliconflow/config/permission_settings.json");
+        let store = Self {
+            db_path,
+            legacy_path,
+        };
         store.init_schema()?;
         store.import_legacy_if_empty()?;
         Ok(store)
@@ -97,8 +99,9 @@ impl PermissionStore {
 
     pub fn list_always_allowed(&self) -> Result<Vec<String>> {
         let conn = self.connect()?;
-        let mut stmt = conn
-            .prepare("SELECT tool_name FROM permission_grants WHERE always_allow = 1 ORDER BY tool_name")?;
+        let mut stmt = conn.prepare(
+            "SELECT tool_name FROM permission_grants WHERE always_allow = 1 ORDER BY tool_name",
+        )?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut out = Vec::new();
         for r in rows {

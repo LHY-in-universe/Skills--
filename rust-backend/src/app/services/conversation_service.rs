@@ -48,7 +48,11 @@ impl ConversationService {
         self.store.resolve_or_create_active(conv_id)
     }
 
-    pub fn append_message(&self, conv_id: &str, message: &ConversationMessage) -> anyhow::Result<()> {
+    pub fn append_message(
+        &self,
+        conv_id: &str,
+        message: &ConversationMessage,
+    ) -> anyhow::Result<()> {
         self.store.append_message(conv_id, message)
     }
 

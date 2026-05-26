@@ -35,7 +35,10 @@ impl ConfigService {
                     let id = existing_id.clone();
                     *item = Value::Object(Map::from_iter([
                         ("id".to_string(), Value::String(id)),
-                        ("provider".to_string(), Value::String("siliconflow".to_string())),
+                        (
+                            "provider".to_string(),
+                            Value::String("siliconflow".to_string()),
+                        ),
                         ("enabled".to_string(), Value::Bool(false)),
                     ]));
                 }
@@ -73,12 +76,19 @@ impl ConfigService {
                 ("id".to_string(), Value::String(req.model_id.clone())),
                 (
                     "provider".to_string(),
-                    Value::String(req.provider.clone().unwrap_or_else(|| "siliconflow".to_string())),
+                    Value::String(
+                        req.provider
+                            .clone()
+                            .unwrap_or_else(|| "siliconflow".to_string()),
+                    ),
                 ),
                 ("enabled".to_string(), Value::Bool(false)),
                 (
                     "api_url".to_string(),
-                    req.api_url.clone().map(Value::String).unwrap_or(Value::Null),
+                    req.api_url
+                        .clone()
+                        .map(Value::String)
+                        .unwrap_or(Value::Null),
                 ),
             ])),
         );
@@ -109,7 +119,10 @@ impl ConfigService {
             Value::String(existing_id) => {
                 let mut rebuilt = Map::new();
                 rebuilt.insert("id".to_string(), Value::String(existing_id.clone()));
-                rebuilt.insert("provider".to_string(), Value::String("siliconflow".to_string()));
+                rebuilt.insert(
+                    "provider".to_string(),
+                    Value::String("siliconflow".to_string()),
+                );
                 rebuilt.insert("enabled".to_string(), Value::Bool(false));
                 *item = Value::Object(rebuilt);
                 item.as_object_mut().expect("重建后的模型配置必须是对象")
@@ -132,10 +145,7 @@ impl ConfigService {
         Ok(self.models_view())
     }
 
-    pub fn delete_model(
-        &self,
-        display_name: &str,
-    ) -> anyhow::Result<BTreeMap<String, ModelSpec>> {
+    pub fn delete_model(&self, display_name: &str) -> anyhow::Result<BTreeMap<String, ModelSpec>> {
         let models_path = self.project_root().join("rust-backend/config/models.json");
         let text = fs::read_to_string(&models_path)?;
         let mut raw: Value = serde_json::from_str(&text)?;
@@ -160,7 +170,10 @@ impl ConfigService {
                         let id = existing_id.clone();
                         *first = Value::Object(Map::from_iter([
                             ("id".to_string(), Value::String(id)),
-                            ("provider".to_string(), Value::String("siliconflow".to_string())),
+                            (
+                                "provider".to_string(),
+                                Value::String("siliconflow".to_string()),
+                            ),
                             ("enabled".to_string(), Value::Bool(true)),
                         ]));
                     }

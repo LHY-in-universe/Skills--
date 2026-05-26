@@ -93,8 +93,14 @@ impl RunStatus {
 pub enum RunError {
     #[error("会话已被中断")]
     Aborted,
-    #[error("上游请求失败: {0}")]
-    Upstream(String),
+    #[error("上游请求失败[{class}]: {message}")]
+    Upstream {
+        class: String,
+        message: String,
+        provider: String,
+        model: String,
+        api_url: String,
+    },
     #[error("工具执行失败: {0}")]
     Tool(String),
     #[error("权限未授予: {0}")]

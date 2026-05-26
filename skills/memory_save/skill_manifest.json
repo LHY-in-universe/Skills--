@@ -1,0 +1,20 @@
+{
+  "tool_name": "memory_save",
+  "skill_dir": "memory_save",
+  "script": "scripts/memory_save.py",
+  "description": "保存一条长期记忆（持久化到本地）。适合记录用户名字、偏好、背景信息等长期事实。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "记忆键名，如 user_name、preferred_language"
+      },
+      "value": {
+        "type": "string",
+        "description": "要记住的内容"
+      }
+    },
+    "required": ["key", "value"]
+  }
+}

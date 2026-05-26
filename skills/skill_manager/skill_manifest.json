@@ -1,0 +1,11 @@
+{
+  "tool_name": "skill_manager",
+  "skill_dir": "skill_manager",
+  "script": "scripts/scan_skills.py",
+  "description": "自动扫描 skills/ 目录，校验并注册新技能到 skill_registry.json",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}

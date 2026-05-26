@@ -36,10 +36,13 @@ impl FailoverPolicy for DefaultFailoverPolicy {
             return None;
         }
         let class = match err {
-            RunError::Upstream(c) => c.as_str(),
+            RunError::Upstream { class, .. } => class.as_str(),
             _ => return None,
         };
-        if !matches!(class, "model_not_found" | "provider_5xx" | "network_timeout") {
+        if !matches!(
+            class,
+            "model_not_found" | "provider_5xx" | "network_timeout"
+        ) {
             return None;
         }
         Some((next_index + 1, chain[next_index].clone()))
