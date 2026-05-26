@@ -3,6 +3,7 @@ import { ref, onMounted, provide, watch, nextTick } from 'vue'
 import { RouterView } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import { createApiClient } from './lib/api'
+import { provideAppContext } from './lib/appContext'
 import {
   createLastRouteInfo,
   createLiveUsage,
@@ -55,28 +56,6 @@ watch(isLightMode, (val) => {
   else document.body.classList.remove('light-mode')
 })
 
-provide('messages', messages)
-provide('isTyping', isTyping)
-provide('streamingContent', streamingContent)
-provide('isStreaming', isStreaming)
-provide('streamingModel', streamingModel)
-provide('models', models)
-provide('currentModel', currentModel)
-provide('skills', skills)
-provide('apiConfig', apiConfig)
-provide('isLightMode', isLightMode)
-provide('permissionDialog', permissionDialog)
-provide('conversations', conversations)
-provide('activeConversationId', activeConversationId)
-provide('apiBase', API_BASE)
-provide('routingConfig', routingConfig)
-provide('lastRouteInfo', lastRouteInfo)
-provide('liveUsage', liveUsage)
-provide('streamMeta', streamMeta)
-provide('voiceRuntime', voiceRuntime)
-provide('apiClient', api)
-provide('notify', notify)
-
 const resetStreamingState = ({ keepTyping = false } = {}) => {
   streamingContent.value = ''
   streamingModel.value = ''
@@ -120,9 +99,6 @@ const switchModel = async (modelName) => {
   await api.post('/api/config', { model: modelName }).catch(() => {})
   await fetchConfig()
 }
-
-provide('exportConversation', exportConversation)
-provide('switchModel', switchModel)
 
 const fetchHistory = async () => {
   try {
@@ -398,9 +374,7 @@ const toggleTheme = () => {
   isLightMode.value = !isLightMode.value
 }
 
-provide('clearHistoryFn', clearHistory)
-provide('createConversationFn', createConversation)
-provide('appActions', {
+const appActions = {
   sendMessage,
   abortChat,
   refreshGlobalData: fetchInitialData,
@@ -411,6 +385,35 @@ provide('appActions', {
   createConversation,
   clearHistory,
   toggleTheme,
+}
+
+provideAppContext(provide, {
+  messages,
+  isTyping,
+  streamingContent,
+  isStreaming,
+  streamingModel,
+  models,
+  currentModel,
+  skills,
+  apiConfig,
+  isLightMode,
+  permissionDialog,
+  conversations,
+  activeConversationId,
+  apiBase: API_BASE,
+  routingConfig,
+  lastRouteInfo,
+  liveUsage,
+  streamMeta,
+  voiceRuntime,
+  api,
+  notify,
+  exportConversation,
+  switchModel,
+  clearHistory,
+  createConversation,
+  appActions,
 })
 
 onMounted(fetchInitialData)
