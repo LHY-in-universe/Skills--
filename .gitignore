@@ -19,8 +19,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -37,7 +37,6 @@ ENV/
 # --- Node.js / Frontend / Desktop ---
 node_modules/
 webapp/frontend/node_modules/
-webapp/desktop/node_modules/
 
 # --- Heavy AI Models ---
 rust-backend/models/
@@ -66,6 +65,7 @@ Thumbs.db
 # --- IDEs ---
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 

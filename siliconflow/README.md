@@ -11,10 +11,11 @@ siliconflow/
 │   ├── providers.json      # Provider 定义
 │   ├── routing_config.json # 路由策略
 │   └── ...                 # 其他配置
-├── data/                   # 运行时数据
+├── data/                   # 本地运行时数据
 │   ├── conversations.json  # 对话历史
 │   ├── memory.json         # 记忆数据
-│   └── token_usage.json    # Token 统计
+│   ├── token_usage.json    # Token 统计
+│   └── *.db                # Rust 后端生成的 SQLite 数据库
 ├── scripts/
 │   └── chat.py             # 命令行聊天入口
 ├── SKILL.md                # 系统提示词与工具说明
@@ -47,4 +48,5 @@ python3 siliconflow/scripts/chat.py
 
 - CLI 模块与 Rust 后端共享同一套配置目录（`siliconflow/config/`）和技能目录（`skills/`）
 - 模型列表来自 `rust-backend/config/models.json`
-- 运行时数据存储在 `siliconflow/data/`，Rust 后端额外使用 SQLite（`siliconflow/data/runtime.db`）
+- `siliconflow/data/` 同时承载 CLI JSON 数据和 Rust 后端生成的 SQLite 文件
+- 这些文件属于本地运行时状态，不适合作为手工维护的配置来源

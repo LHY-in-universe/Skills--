@@ -194,7 +194,6 @@ SSE 事件类型：
 当前已支持自动执行的工具：
 
 - `get_current_time`
-- `get_weather`
 - `get_system_info`
 - `monte_carlo_integration`
 - `summary_rules`
@@ -204,6 +203,8 @@ SSE 事件类型：
 - `run_terminal`
 - `file_editor`
 - `write_python`
+- `pip_venv`
+- `vision_analyze`
 
 当前工具调用落库方式：
 

@@ -13,11 +13,17 @@ Skills探索/
 ├── webapp/
 │   └── frontend/           # Vue 3 + Vite 前端
 ├── skills/                 # 技能目录（SKILL.md / scripts/）
-├── siliconflow/            # CLI 编排模块 + 配置 + 数据
+├── siliconflow/            # CLI 编排模块 + 配置 + 运行数据
 │   ├── config/             # 环境变量、路由、provider 等配置
-│   └── data/               # 运行时数据（conversations / token_usage 等）
+│   └── data/               # 本地运行时数据（SQLite / conversations / token usage）
 └── docs/                   # 架构、迁移、API 文档
 ```
+
+## 当前形态
+
+- Web 前端是唯一 UI 入口，位于 `webapp/frontend/`
+- 主服务是 `rust-backend/`，默认监听 `http://127.0.0.1:18000`
+- `siliconflow/data/` 下的内容属于本地运行数据，不应作为稳定业务数据直接编辑
 
 ## 快速启动
 

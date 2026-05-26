@@ -109,7 +109,7 @@ const connectWS = () => {
         }
         break
         
-      case 'audio_stream':
+      case 'audio_stream': {
         // Decode base64 to arraybuffer and add to queue
         const binaryString = atob(msg.data)
         const bytes = new Uint8Array(binaryString.length)
@@ -124,6 +124,7 @@ const connectWS = () => {
         }
         if (!isPlaying.value) playNextInQueue()
         break
+      }
         
       case 'done':
         // End of AI turn; keep continuous listening when voice is enabled
@@ -203,9 +204,21 @@ const startMic = async () => {
 }
 
 const stopMic = () => {
-  try { processorNode.value?.disconnect() } catch {}
-  try { sourceNode.value?.disconnect() } catch {}
-  try { micStream.value?.getTracks().forEach(t => t.stop()) } catch {}
+  try {
+    processorNode.value?.disconnect()
+  } catch (err) {
+    console.warn('Failed to disconnect processor node:', err)
+  }
+  try {
+    sourceNode.value?.disconnect()
+  } catch (err) {
+    console.warn('Failed to disconnect source node:', err)
+  }
+  try {
+    micStream.value?.getTracks().forEach((t) => t.stop())
+  } catch (err) {
+    console.warn('Failed to stop microphone tracks:', err)
+  }
   processorNode.value = null
   sourceNode.value = null
   micStream.value = null
@@ -229,11 +242,19 @@ const disableVoice = async () => {
   isPlaying.value = false
   stopMic()
   if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    try { ws.value.close() } catch {}
+    try {
+      ws.value.close()
+    } catch (err) {
+      console.warn('Failed to close voice websocket:', err)
+    }
   }
   ws.value = null
   if (audioContext.value) {
-    try { await audioContext.value.close() } catch {}
+    try {
+      await audioContext.value.close()
+    } catch (err) {
+      console.warn('Failed to close audio context:', err)
+    }
   }
   audioContext.value = null
 }

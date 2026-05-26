@@ -187,6 +187,6 @@ rust-backend/
 
 ## 工具系统
 
-自动执行的安全工具：`get_current_time` / `get_weather` / `get_system_info` / `monte_carlo_integration` / `summary_rules`
+自动执行的安全工具：`get_current_time` / `get_system_info` / `monte_carlo_integration` / `summary_rules`
 
-需要权限确认的危险工具：`run_terminal` / `file_editor` / `write_python`
+需要权限确认的危险工具：`run_terminal` / `file_editor` / `write_python` / `pip_venv` / `vision_analyze`

@@ -3,6 +3,17 @@ import { ref, onMounted, provide, watch, nextTick } from 'vue'
 import { RouterView } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import { createApiClient } from './lib/api'
+import {
+  createLastRouteInfo,
+  createLiveUsage,
+  createNotice,
+  createPermissionDialog,
+  createRoutingConfig,
+  createStreamMeta,
+  createVoiceRuntime,
+  mapModelsResponse,
+  mergeHistoryMetadata,
+} from './lib/chatState'
 
 const messages = ref([])
 const isTyping = ref(false)
@@ -16,34 +27,18 @@ const isLightMode = ref(false)
 const apiConfig = ref({ api_url: '', current_model: '' })
 const conversations = ref([])
 const activeConversationId = ref('')
-const routingConfig = ref({ enabled: false, router_model: '', summary_model: '', tiers: { easy: '', medium: '', hard: '' } })
-const lastRouteInfo = ref({ tier: '', model: '' })
-const liveUsage = ref({ prompt: 0, completion: 0, total: 0, call_type: '', model: '', provider: '', cached_read: 0, cached_write: 0 })
-const streamMeta = ref({ plan: [], currentStep: '', audit: '', auditReason: '', failover: [] })
-const voiceRuntime = ref({
-  enabled: false,
-  convId: '',
-  phase: 'idle',
-  source: '',
-  queueLength: 0,
-  chunksReceived: 0,
-  chunksPlayed: 0,
-})
+const routingConfig = ref(createRoutingConfig())
+const lastRouteInfo = ref(createLastRouteInfo())
+const liveUsage = ref(createLiveUsage())
+const streamMeta = ref(createStreamMeta())
+const voiceRuntime = ref(createVoiceRuntime())
 
-const isElectron = typeof window !== 'undefined' && !!window.electronAPI
-const isCompact = ref(false)
-const API_BASE = (isElectron && window.location.protocol === 'file:')
-  ? 'http://localhost:8000'
-  : ''
+const API_BASE = ''
 const api = createApiClient(API_BASE)
-const notice = ref({ show: false, type: 'info', text: '' })
+const notice = ref(createNotice())
 let noticeTimer = null
 
-const permissionDialog = ref({
-  visible: false,
-  toolName: '',
-  description: '',
-})
+const permissionDialog = ref(createPermissionDialog())
 
 let abortController = null
 
@@ -53,11 +48,6 @@ const notify = (text, type = 'info') => {
   noticeTimer = setTimeout(() => {
     notice.value.show = false
   }, 2600)
-}
-
-const toggleCompact = () => {
-  isCompact.value = !isCompact.value
-  if (isElectron) window.electronAPI.toggleCompact(isCompact.value)
 }
 
 watch(isLightMode, (val) => {
@@ -86,6 +76,13 @@ provide('streamMeta', streamMeta)
 provide('voiceRuntime', voiceRuntime)
 provide('apiClient', api)
 provide('notify', notify)
+
+const resetStreamingState = ({ keepTyping = false } = {}) => {
+  streamingContent.value = ''
+  streamingModel.value = ''
+  isStreaming.value = false
+  if (!keepTyping) isTyping.value = false
+}
 
 const fetchConfig = async () => {
   try {
@@ -130,20 +127,7 @@ provide('switchModel', switchModel)
 const fetchHistory = async () => {
   try {
     const historyRes = await api.get('/api/history')
-    const buckets = new Map()
-    for (const msg of messages.value) {
-      const key = `${msg?.role || ''}|${msg?.content || ''}|${JSON.stringify(msg?.tool_calls || [])}`
-      const arr = buckets.get(key) || []
-      if (msg && (msg._tokens || msg._model)) arr.push({ _tokens: msg._tokens, _model: msg._model })
-      buckets.set(key, arr)
-    }
-    messages.value = historyRes.map((msg) => {
-      const key = `${msg?.role || ''}|${msg?.content || ''}|${JSON.stringify(msg?.tool_calls || [])}`
-      const arr = buckets.get(key) || []
-      const cached = arr.shift()
-      buckets.set(key, arr)
-      return cached ? { ...msg, ...cached } : msg
-    })
+    messages.value = mergeHistoryMetadata(messages.value, historyRes)
   } catch (err) {
     console.error('Failed to fetch history:', err)
   }
@@ -186,15 +170,7 @@ const fetchInitialData = async () => {
     safe(api.get('/api/routing')),
   ])
   if (modelsRes) {
-    models.value = Object.entries(modelsRes).map(([displayName, config]) => ({
-      displayName,
-      apiId: config.id || config,
-      provider: config.provider || '',
-      apiUrl: config.api_url || '',
-      enabled: config.enabled !== false,
-      capabilities: config.capabilities || {},
-      requires: config.requires || [],
-    }))
+    models.value = mapModelsResponse(modelsRes)
   }
   if (configRes) {
     apiConfig.value = configRes
@@ -279,9 +255,7 @@ const processStream = async (response) => {
           liveUsage.value.cached_write += event.cached_write || 0
           break
         case 'permission_required':
-          streamingContent.value = ''
-          streamingModel.value = ''
-          isStreaming.value = false
+          resetStreamingState({ keepTyping: true })
           permissionDialog.value = {
             visible: true,
             toolName: event.tool_name,
@@ -290,17 +264,11 @@ const processStream = async (response) => {
           await fetchHistory()
           return { status: 'permission' }
         case 'aborted':
-          streamingContent.value = ''
-          streamingModel.value = ''
-          isStreaming.value = false
-          isTyping.value = false
+          resetStreamingState()
           await fetchHistory()
           return { status: 'aborted' }
         case 'error':
-          streamingContent.value = ''
-          streamingModel.value = ''
-          isStreaming.value = false
-          isTyping.value = false
+          resetStreamingState()
           return {
             status: 'error',
             message: event.content || 'Unknown stream error',
@@ -322,10 +290,7 @@ const processStream = async (response) => {
             }
           }
           pendingUsage = null
-          streamingContent.value = ''
-          streamingModel.value = ''
-          isStreaming.value = false
-          isTyping.value = false
+          resetStreamingState()
           break
         }
       }
@@ -339,14 +304,16 @@ const sendMessage = async (text) => {
   if (abortController) {
     try {
       abortController.abort()
-    } catch {}
+    } catch (err) {
+      console.warn('Abort controller cleanup failed:', err)
+    }
   }
   messages.value.push({ role: 'user', content: text })
   isTyping.value = true
   isStreaming.value = true
   streamingContent.value = ''
-  streamMeta.value = { plan: [], currentStep: '', audit: '', auditReason: '', failover: [] }
-  liveUsage.value = { prompt: 0, completion: 0, total: 0, call_type: '', model: '', provider: '', cached_read: 0, cached_write: 0 }
+  streamMeta.value = createStreamMeta()
+  liveUsage.value = createLiveUsage()
   let retried = false
   while (true) {
     abortController = new AbortController()
@@ -373,15 +340,12 @@ const sendMessage = async (text) => {
       }
       break
     } catch (err) {
-      streamingContent.value = ''
-      streamingModel.value = ''
-      isStreaming.value = false
+      resetStreamingState({ keepTyping: err.name === 'AbortError' })
       if (err.name !== 'AbortError') {
         messages.value.push({
           role: 'assistant',
           content: `**Error:** ${err.message}. Please check your API configuration.`,
         })
-        isTyping.value = false
       }
       break
     }
@@ -410,12 +374,9 @@ const handlePermissionResponse = async (granted, alwaysAllow = false) => {
       messages.value.push({ role: 'assistant', content: `**Error:** ${result.message || 'Resume failed'}` })
     }
   } catch (err) {
-    streamingContent.value = ''
-    streamingModel.value = ''
-    isStreaming.value = false
+    resetStreamingState({ keepTyping: err.name === 'AbortError' })
     if (err.name !== 'AbortError') {
       messages.value.push({ role: 'assistant', content: `**Error:** ${err.message}` })
-      isTyping.value = false
     }
   }
 }
@@ -456,14 +417,7 @@ onMounted(fetchInitialData)
 </script>
 
 <template>
-  <div v-if="isElectron && isCompact" class="desktop-bubble" @click="toggleCompact">🤖</div>
-
-  <div v-if="isElectron && !isCompact" class="desktop-drag-bar">
-    <span class="drag-region">桌面精灵</span>
-    <button class="no-drag" @click="toggleCompact" title="折叠">—</button>
-  </div>
-
-  <div v-show="!isElectron || !isCompact" class="app-shell">
+  <div class="app-shell">
     <Sidebar />
     <main class="chat-main app-content">
       <div v-if="notice.show" class="global-notice" :class="`notice-${notice.type}`">{{ notice.text }}</div>
