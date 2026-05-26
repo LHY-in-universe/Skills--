@@ -74,7 +74,10 @@ rust-backend/target/
 
 # --- Runtime Data ---
 siliconflow/data/runtime.db
+siliconflow/data/app.db
+siliconflow/data/conversations.db
 siliconflow/data/doctor_backups/
+.clawhub/
 
 # --- Logs ---
 *.log

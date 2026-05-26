@@ -11,8 +11,7 @@ Skills探索/
 │   ├── models/             # 语音 ONNX 模型（gitignore）
 │   └── src/                # Rust 源码
 ├── webapp/
-│   ├── frontend/           # Vue 3 + Vite 前端
-│   └── desktop/            # Electron 桌面壳（可选）
+│   └── frontend/           # Vue 3 + Vite 前端
 ├── skills/                 # 技能目录（SKILL.md / scripts/）
 ├── siliconflow/            # CLI 编排模块 + 配置 + 数据
 │   ├── config/             # 环境变量、路由、provider 等配置
@@ -64,14 +63,6 @@ npm run dev
 - **可观测性**：token 统计、执行日志、failover 记录
 
 ## 可选组件
-
-### Electron 桌面壳
-
-```bash
-cd webapp/desktop
-npm install
-npm run start
-```
 
 ### SiliconFlow CLI
 
