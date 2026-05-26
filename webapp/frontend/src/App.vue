@@ -5,6 +5,12 @@ import Sidebar from './components/Sidebar.vue'
 import { createApiClient } from './lib/api'
 import { provideAppContext } from './lib/appContext'
 import {
+  fetchConfigData,
+  fetchConversationsData,
+  fetchHistoryData,
+  fetchInitialAppData,
+} from './lib/chatData'
+import {
   createLastRouteInfo,
   createLiveUsage,
   createNotice,
@@ -12,9 +18,13 @@ import {
   createRoutingConfig,
   createStreamMeta,
   createVoiceRuntime,
-  mapModelsResponse,
-  mergeHistoryMetadata,
 } from './lib/chatState'
+import {
+  applyStartEvent,
+  applyUsageEvent,
+  parseSseLine,
+  pushFailoverEvent,
+} from './lib/chatStream'
 
 const messages = ref([])
 const isTyping = ref(false)
@@ -65,11 +75,7 @@ const resetStreamingState = ({ keepTyping = false } = {}) => {
 
 const fetchConfig = async () => {
   try {
-    const configRes = await api.get('/api/config')
-    if (configRes) {
-      apiConfig.value = configRes
-      currentModel.value = configRes.current_model
-    }
+    await fetchConfigData({ api, apiConfig, currentModel })
   } catch (err) {
     console.error('Failed to fetch config:', err)
   }
@@ -102,8 +108,7 @@ const switchModel = async (modelName) => {
 
 const fetchHistory = async () => {
   try {
-    const historyRes = await api.get('/api/history')
-    messages.value = mergeHistoryMetadata(messages.value, historyRes)
+    await fetchHistoryData({ api, messages })
   } catch (err) {
     console.error('Failed to fetch history:', err)
   }
@@ -111,10 +116,7 @@ const fetchHistory = async () => {
 
 const fetchConversations = async () => {
   try {
-    const res = await api.get('/api/conversations')
-    conversations.value = res
-    const active = res.find((item) => item.active)
-    if (active) activeConversationId.value = active.id
+    await fetchConversationsData({ api, conversations, activeConversationId })
   } catch (err) {
     console.error('Failed to fetch conversations:', err)
   }
@@ -135,25 +137,14 @@ const createConversation = async () => {
 }
 
 const fetchInitialData = async () => {
-  const safe = (promise) => promise.catch((err) => {
-    console.error('fetch error:', err)
-    return null
+  await fetchInitialAppData({
+    api,
+    models,
+    apiConfig,
+    currentModel,
+    skills,
+    routingConfig,
   })
-  const [modelsRes, configRes, skillsRes, routingRes] = await Promise.all([
-    safe(api.get('/api/models')),
-    safe(api.get('/api/config')),
-    safe(api.get('/api/skills')),
-    safe(api.get('/api/routing')),
-  ])
-  if (modelsRes) {
-    models.value = mapModelsResponse(modelsRes)
-  }
-  if (configRes) {
-    apiConfig.value = configRes
-    currentModel.value = configRes.current_model
-  }
-  if (skillsRes) skills.value = skillsRes
-  if (routingRes) routingConfig.value = routingRes
   await Promise.all([fetchHistory(), fetchConversations()])
 }
 
@@ -172,13 +163,8 @@ const processStream = async (response) => {
     buffer = lines.pop() ?? ''
 
     for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      let event
-      try {
-        event = JSON.parse(line.slice(6))
-      } catch {
-        continue
-      }
+      const event = parseSseLine(line)
+      if (!event) continue
 
       switch (event.type) {
         case 'plan':
@@ -194,41 +180,21 @@ const processStream = async (response) => {
           streamMeta.value.audit = event.ok ? 'ok' : 'retry'
           if (event.ok === false && event.reason) streamMeta.value.auditReason = event.reason
           break
-        case 'failover_step': {
-          const arr = Array.isArray(streamMeta.value.failover) ? streamMeta.value.failover : []
-          arr.push(event)
-          streamMeta.value.failover = arr.slice(-8)
+        case 'failover_step':
+          pushFailoverEvent(streamMeta, event)
           break
-        }
-        case 'failover_exhausted': {
-          const arr = Array.isArray(streamMeta.value.failover) ? streamMeta.value.failover : []
-          arr.push({ ...event, failover_type: 'exhausted' })
-          streamMeta.value.failover = arr.slice(-8)
+        case 'failover_exhausted':
+          pushFailoverEvent(streamMeta, event, true)
           break
-        }
         case 'start':
-          streamingModel.value = event._model || currentModel.value
-          apiConfig.value = {
-            ...(apiConfig.value || {}),
-            current_model: event._model || currentModel.value,
-            effective_model_id: event._model_id || apiConfig.value?.effective_model_id || '',
-            effective_provider: event._provider || apiConfig.value?.effective_provider || '',
-          }
+          applyStartEvent({ event, streamingModel, currentModel, apiConfig })
           break
         case 'text':
           streamingContent.value += event.content
           await nextTick()
           break
         case 'usage':
-          pendingUsage = { prompt: event.prompt, completion: event.completion, total: event.total }
-          liveUsage.value.prompt += event.prompt || 0
-          liveUsage.value.completion += event.completion || 0
-          liveUsage.value.total += event.total || ((event.prompt || 0) + (event.completion || 0))
-          liveUsage.value.call_type = event.call_type || liveUsage.value.call_type || ''
-          liveUsage.value.model = event.model || liveUsage.value.model || ''
-          liveUsage.value.provider = event.provider || liveUsage.value.provider || ''
-          liveUsage.value.cached_read += event.cached_read || 0
-          liveUsage.value.cached_write += event.cached_write || 0
+          pendingUsage = applyUsageEvent(liveUsage, event)
           break
         case 'permission_required':
           resetStreamingState({ keepTyping: true })
