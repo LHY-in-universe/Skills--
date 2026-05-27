@@ -436,6 +436,15 @@ impl ChatService {
         self.execute_tool_tracked(None, name, args).await
     }
 
+    pub async fn execute_tool_with_permission(
+        &self,
+        name: &str,
+        args: &Value,
+    ) -> anyhow::Result<String> {
+        self.execute_tool_tracked_with_permission(None, name, args)
+            .await
+    }
+
     /// 执行工具并把一次调用记录写进 `execution_events` 表。
     pub async fn execute_tool_tracked(
         &self,
@@ -443,8 +452,31 @@ impl ChatService {
         name: &str,
         args: &Value,
     ) -> anyhow::Result<String> {
+        self.execute_tool_tracked_inner(conv_id, name, args, false).await
+    }
+
+    pub async fn execute_tool_tracked_with_permission(
+        &self,
+        conv_id: Option<&str>,
+        name: &str,
+        args: &Value,
+    ) -> anyhow::Result<String> {
+        self.execute_tool_tracked_inner(conv_id, name, args, true).await
+    }
+
+    async fn execute_tool_tracked_inner(
+        &self,
+        conv_id: Option<&str>,
+        name: &str,
+        args: &Value,
+        approved: bool,
+    ) -> anyhow::Result<String> {
         let started = std::time::Instant::now();
-        let result = self.tool_service.execute(name, args).await;
+        let result = if approved {
+            self.tool_service.execute_with_permission(name, args).await
+        } else {
+            self.tool_service.execute(name, args).await
+        };
         let elapsed_ms = started.elapsed().as_millis() as i64;
         let (status, response_text) = match &result {
             Ok(text) => ("ok", text.clone()),

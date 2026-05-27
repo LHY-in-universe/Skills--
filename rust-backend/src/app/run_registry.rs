@@ -165,3 +165,75 @@ impl Default for RunRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RunRegistry;
+    use crate::app::services::chat::permission::PendingPermission;
+    use crate::app::services::chat_service::{PreparedChatRun, ToolCallMode};
+    use crate::domain::run::RunStatus;
+    use serde_json::json;
+
+    fn sample_pending(conversation_id: &str) -> PendingPermission {
+        PendingPermission {
+            conversation_id: conversation_id.to_string(),
+            prepared: PreparedChatRun {
+                conversation_id: conversation_id.to_string(),
+                model_name: "model".to_string(),
+                model_id: "provider/model".to_string(),
+                provider: "provider".to_string(),
+                api_url: "http://localhost".to_string(),
+                api_key: "test-key".to_string(),
+                messages: vec![],
+                route: "manual".to_string(),
+                tier: "easy".to_string(),
+                query: "hello".to_string(),
+                plan_enabled: false,
+                plan_steps: vec![],
+                audit_retry_cap: 0,
+                fallback_chain: vec![],
+                routed_tool_names: None,
+                tool_call_mode: ToolCallMode::Function,
+                prompt_fallback_attempted: false,
+            },
+            request_messages: vec![],
+            tool_calls: vec![json!({
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "run_terminal",
+                    "arguments": "{\"command\":\"pwd\"}"
+                }
+            })],
+            next_index: 0,
+        }
+    }
+
+    #[test]
+    fn pending_permission_transitions_status_between_awaiting_and_running() {
+        let registry = RunRegistry::new();
+        let conversation_id = "conv-test";
+
+        assert_eq!(registry.status_snapshot(conversation_id), RunStatus::Idle);
+
+        registry.set_pending(sample_pending(conversation_id));
+        assert_eq!(
+            registry.status_snapshot(conversation_id),
+            RunStatus::AwaitingPermission
+        );
+
+        let taken = registry.take_pending(conversation_id);
+        assert!(taken.is_some());
+        assert_eq!(taken.unwrap().conversation_id, conversation_id);
+        assert_eq!(registry.status_snapshot(conversation_id), RunStatus::Running);
+    }
+
+    #[test]
+    fn take_pending_returns_none_for_other_conversation() {
+        let registry = RunRegistry::new();
+        registry.set_pending(sample_pending("conv-a"));
+
+        assert!(registry.take_pending("conv-b").is_none());
+        assert_eq!(registry.status_snapshot("conv-a"), RunStatus::AwaitingPermission);
+    }
+}

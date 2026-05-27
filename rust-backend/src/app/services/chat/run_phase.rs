@@ -167,3 +167,24 @@ impl RunPhase {
 pub async fn emit(tx: &EventTx, phase: RunPhase) {
     let _ = tx.send(phase.to_event()).await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RunPhase;
+    use serde_json::json;
+
+    #[test]
+    fn permission_required_event_contains_expected_fields() {
+        let event = RunPhase::PermissionRequired {
+            tool_name: "run_terminal".to_string(),
+            args: json!({ "command": "pwd" }),
+            description: "工具需要用户审批".to_string(),
+        }
+        .to_event();
+
+        assert_eq!(event["type"], "permission_required");
+        assert_eq!(event["tool_name"], "run_terminal");
+        assert_eq!(event["args"], json!({ "command": "pwd" }));
+        assert_eq!(event["description"], "工具需要用户审批");
+    }
+}

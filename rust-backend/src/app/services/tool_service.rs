@@ -73,6 +73,17 @@ impl ToolService {
     }
 
     pub async fn execute(&self, name: &str, args: &Value) -> anyhow::Result<String> {
+        if self.needs_permission(name) {
+            return Err(anyhow!("tool_requires_permission:{name}"));
+        }
+        self.execute_with_permission(name, args).await
+    }
+
+    pub async fn execute_with_permission(
+        &self,
+        name: &str,
+        args: &Value,
+    ) -> anyhow::Result<String> {
         match name {
             "get_current_time" => self.run_simple_script("clock/scripts/get_time.py").await,
             "get_system_info" => {
@@ -609,5 +620,172 @@ impl ToolService {
             return Err(anyhow!("终端工作目录不存在: {}", resolved.display()));
         }
         Ok(resolved)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ToolService;
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_project_root(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("skills_tool_service_{name}_{unique}"));
+        fs::create_dir_all(root.join("siliconflow/data")).expect("create siliconflow/data");
+        fs::create_dir_all(root.join("test")).expect("create test sandbox");
+        root
+    }
+
+    fn write_registry(project_root: &PathBuf, items: serde_json::Value) {
+        let path = project_root.join("siliconflow/data/skill_registry.json");
+        fs::write(path, serde_json::to_string_pretty(&items).expect("serialize registry"))
+            .expect("write registry");
+    }
+
+    #[test]
+    fn auto_allowed_tools_do_not_need_permission() {
+        let project_root = make_project_root("auto_allowed");
+        let service = ToolService::new(project_root);
+
+        assert!(service.is_auto_allowed("get_current_time"));
+        assert!(service.is_auto_allowed("get_system_info"));
+        assert!(service.is_auto_allowed("monte_carlo_integration"));
+        assert!(service.is_auto_allowed("summary_rules"));
+        assert!(!service.needs_permission("get_current_time"));
+        assert!(!service.needs_permission("summary_rules"));
+    }
+
+    #[test]
+    fn built_in_dangerous_tools_always_need_permission() {
+        let project_root = make_project_root("dangerous");
+        let service = ToolService::new(project_root);
+
+        for tool in [
+            "run_terminal",
+            "file_editor",
+            "write_python",
+            "pip_venv",
+            "vision_analyze",
+        ] {
+            assert!(service.needs_permission(tool), "{tool} should require permission");
+        }
+    }
+
+    #[test]
+    fn registry_low_risk_tool_does_not_need_permission() {
+        let project_root = make_project_root("registry_low");
+        write_registry(
+            &project_root,
+            json!([
+                {
+                    "tool_name": "memory_save",
+                    "risk_level": "low",
+                    "managed_by": "local"
+                }
+            ]),
+        );
+        let service = ToolService::new(project_root);
+
+        assert!(!service.needs_permission("memory_save"));
+    }
+
+    #[test]
+    fn registry_high_risk_or_clawhub_tool_needs_permission() {
+        let project_root = make_project_root("registry_high");
+        write_registry(
+            &project_root,
+            json!([
+                {
+                    "tool_name": "danger_by_risk",
+                    "risk_level": "high",
+                    "managed_by": "local"
+                },
+                {
+                    "tool_name": "danger_by_manager",
+                    "risk_level": "low",
+                    "managed_by": "clawhub"
+                }
+            ]),
+        );
+        let service = ToolService::new(project_root);
+
+        assert!(service.needs_permission("danger_by_risk"));
+        assert!(service.needs_permission("danger_by_manager"));
+    }
+
+    #[test]
+    fn tool_schemas_only_include_enabled_and_executable_tools() {
+        let project_root = make_project_root("schemas");
+        write_registry(
+            &project_root,
+            json!([
+                {
+                    "tool_name": "enabled_tool",
+                    "description": "enabled",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string" }
+                        }
+                    },
+                    "runtime": { "executable": true }
+                },
+                {
+                    "tool_name": "disabled_runtime",
+                    "description": "disabled",
+                    "parameters": { "type": "object", "properties": {} },
+                    "runtime": { "executable": false }
+                },
+                {
+                    "tool_name": "not_enabled",
+                    "description": "not enabled",
+                    "parameters": { "type": "object", "properties": {} },
+                    "runtime": { "executable": true }
+                }
+            ]),
+        );
+        let service = ToolService::new(project_root);
+
+        let schemas = service
+            .tool_schemas(&["enabled_tool".to_string(), "disabled_runtime".to_string()])
+            .expect("tool schemas");
+
+        assert_eq!(schemas.len(), 1);
+        assert_eq!(
+            schemas[0]["function"]["name"].as_str(),
+            Some("enabled_tool")
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_rejects_dangerous_tool_without_permission() {
+        let project_root = make_project_root("reject_execute");
+        let service = ToolService::new(project_root);
+
+        let err = service
+            .execute("run_terminal", &json!({ "command": "pwd" }))
+            .await
+            .expect_err("dangerous tool should be rejected");
+
+        assert!(err.to_string().contains("tool_requires_permission:run_terminal"));
+    }
+
+    #[tokio::test]
+    async fn execute_with_permission_allows_approved_dangerous_tool() {
+        let project_root = make_project_root("approved_gate");
+        let service = ToolService::new(project_root);
+
+        let result = service
+            .execute_with_permission("run_terminal", &json!({ "command": "pwd" }))
+            .await
+            .expect("approved dangerous tool should execute");
+
+        assert!(result.contains("\"ok\": true"));
     }
 }

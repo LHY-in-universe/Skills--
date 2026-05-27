@@ -558,64 +558,240 @@ impl ChatExecutor {
         granted: bool,
         tx: EventTx,
     ) -> Result<(), RunError> {
-        let chat_service = &self.chat_service;
         let mut request_messages = pending.request_messages.clone();
 
         for tool_call in pending.tool_calls.iter().skip(pending.next_index) {
-            let (name, args) = parse_tool_call(tool_call);
-            let call_id = tool_call_id(tool_call);
-
-            if chat_service.requires_permission(&name) && !granted {
-                let denied = "用户拒绝了此操作，已取消执行。".to_string();
-                request_messages.push(serde_json::json!({
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                    "content": denied
-                }));
-                chat_service
-                    .append_tool_message(&pending.conversation_id, &call_id, &name, &args, denied)
-                    .map_err(|err| to_run_error(err, &pending.prepared))?;
+            let should_continue = self
+                .resume_single_tool_call(
+                    &pending,
+                    &mut request_messages,
+                    tool_call,
+                    granted,
+                    &tx,
+                )
+                .await?;
+            if !should_continue {
                 break;
             }
-
-            emit(&tx, RunPhase::ToolStart { name: name.clone() }).await;
-            let result = match chat_service
-                .execute_tool_tracked(Some(&pending.conversation_id), &name, &args)
-                .await
-            {
-                Ok(text) => text,
-                Err(err) => {
-                    tracing::warn!(
-                        conversation_id = %pending.conversation_id,
-                        tool_name = %name,
-                        tool_args = %serde_json::to_string(&args).unwrap_or_default(),
-                        error = %err,
-                        "tool execution failed after permission resume"
-                    );
-                    emit(
-                        &tx,
-                        RunPhase::Error {
-                            content: format!("工具 `{}` 执行失败: {}", name, err),
-                            error_class: "tool_error",
-                        },
-                    )
-                    .await;
-                    err.to_string()
-                }
-            };
-            request_messages.push(serde_json::json!({
-                "role": "tool",
-                "tool_call_id": call_id,
-                "content": result
-            }));
-            chat_service
-                .append_tool_message(&pending.conversation_id, &call_id, &name, &args, result)
-                .map_err(|err| to_run_error(err, &pending.prepared))?;
-            emit(&tx, RunPhase::ToolDone { name }).await;
         }
 
         let mut prepared = pending.prepared;
         prepared.messages = request_messages;
         self.stream_once(prepared, tx).await
+    }
+
+    async fn resume_single_tool_call(
+        &self,
+        pending: &PendingPermission,
+        request_messages: &mut Vec<Value>,
+        tool_call: &Value,
+        granted: bool,
+        tx: &EventTx,
+    ) -> Result<bool, RunError> {
+        let chat_service = &self.chat_service;
+        let (name, args) = parse_tool_call(tool_call);
+        let call_id = tool_call_id(tool_call);
+
+        if chat_service.requires_permission(&name) && !granted {
+            let denied = "用户拒绝了此操作，已取消执行。".to_string();
+            request_messages.push(serde_json::json!({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": denied
+            }));
+            chat_service
+                .append_tool_message(&pending.conversation_id, &call_id, &name, &args, denied)
+                .map_err(|err| to_run_error(err, &pending.prepared))?;
+            return Ok(false);
+        }
+
+        emit(tx, RunPhase::ToolStart { name: name.clone() }).await;
+        let result = match chat_service
+            .execute_tool_tracked_with_permission(Some(&pending.conversation_id), &name, &args)
+            .await
+        {
+            Ok(text) => text,
+            Err(err) => {
+                tracing::warn!(
+                    conversation_id = %pending.conversation_id,
+                    tool_name = %name,
+                    tool_args = %serde_json::to_string(&args).unwrap_or_default(),
+                    error = %err,
+                    "tool execution failed after permission resume"
+                );
+                emit(
+                    tx,
+                    RunPhase::Error {
+                        content: format!("工具 `{}` 执行失败: {}", name, err),
+                        error_class: "tool_error",
+                    },
+                )
+                .await;
+                err.to_string()
+            }
+        };
+        request_messages.push(serde_json::json!({
+            "role": "tool",
+            "tool_call_id": call_id,
+            "content": result
+        }));
+        chat_service
+            .append_tool_message(&pending.conversation_id, &call_id, &name, &args, result)
+            .map_err(|err| to_run_error(err, &pending.prepared))?;
+        emit(tx, RunPhase::ToolDone { name }).await;
+        Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChatExecutor, EventTx};
+    use crate::app::run_registry::RunRegistry;
+    use crate::app::services::chat::permission::PendingPermission;
+    use crate::app::services::chat_service::{ChatService, PreparedChatRun, ToolCallMode};
+    use crate::app::services::config_service::ConfigService;
+    use crate::app::services::conversation_service::ConversationService;
+    use crate::app::services::tool_service::ToolService;
+    use crate::infra::conversation_store::ConversationStore;
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tokio::sync::mpsc;
+
+    fn make_project_root(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("skills_executor_{name}_{unique}"));
+        fs::create_dir_all(root.join("siliconflow/data")).expect("create siliconflow/data");
+        fs::create_dir_all(root.join("siliconflow/config")).expect("create siliconflow/config");
+        fs::create_dir_all(root.join("test")).expect("create test");
+        fs::write(
+            root.join("siliconflow/config/providers.json"),
+            "{\"providers\":[]}",
+        )
+        .ok();
+        root
+    }
+
+    fn make_chat_service(project_root: PathBuf) -> (ChatService, ConversationService) {
+        let config_service = ConfigService::load(project_root.clone()).expect("load config");
+        let conversation_store =
+            ConversationStore::bootstrap(project_root.clone()).expect("bootstrap store");
+        let conversation_service = ConversationService::new(conversation_store);
+        let tool_service = ToolService::new(project_root);
+        let run_registry = RunRegistry::new();
+        let chat_service = ChatService::new(
+            config_service.clone(),
+            conversation_service.clone(),
+            tool_service,
+            run_registry,
+            config_service.token_store().clone(),
+        );
+        (chat_service, conversation_service)
+    }
+
+    fn create_conversation_id(conversation_service: &ConversationService) -> String {
+        conversation_service
+            .create()
+            .expect("create conversation")
+            .id
+    }
+
+    fn sample_pending(conversation_id: &str) -> PendingPermission {
+        PendingPermission {
+            conversation_id: conversation_id.to_string(),
+            prepared: PreparedChatRun {
+                conversation_id: conversation_id.to_string(),
+                model_name: "model".to_string(),
+                model_id: "provider/model".to_string(),
+                provider: "provider".to_string(),
+                api_url: "http://localhost".to_string(),
+                api_key: "test-key".to_string(),
+                messages: vec![],
+                route: "manual".to_string(),
+                tier: "easy".to_string(),
+                query: "hello".to_string(),
+                plan_enabled: false,
+                plan_steps: vec![],
+                audit_retry_cap: 0,
+                fallback_chain: vec![],
+                routed_tool_names: None,
+                tool_call_mode: ToolCallMode::Function,
+                prompt_fallback_attempted: false,
+            },
+            request_messages: vec![],
+            tool_calls: vec![json!({
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "run_terminal",
+                    "arguments": "{\"command\":\"pwd\"}"
+                }
+            })],
+            next_index: 0,
+        }
+    }
+
+    fn drain_event(rx: &mut tokio::sync::mpsc::Receiver<serde_json::Value>) -> serde_json::Value {
+        rx.try_recv().expect("expected event")
+    }
+
+    #[tokio::test]
+    async fn resume_single_tool_call_emits_denied_tool_message_when_not_granted() {
+        let project_root = make_project_root("denied");
+        let (chat_service, conversation_service) = make_chat_service(project_root);
+        let conversation_id = create_conversation_id(&conversation_service);
+        let executor = ChatExecutor::new(chat_service.clone());
+        let pending = sample_pending(&conversation_id);
+        let tool_call = pending.tool_calls[0].clone();
+        let mut request_messages = Vec::new();
+        let (tx, mut rx): (EventTx, _) = mpsc::channel(8);
+
+        let should_continue = executor
+            .resume_single_tool_call(&pending, &mut request_messages, &tool_call, false, &tx)
+            .await
+            .expect("resume single tool call");
+
+        assert!(!should_continue);
+        assert_eq!(request_messages.len(), 1);
+        assert_eq!(request_messages[0]["role"], "tool");
+        assert_eq!(
+            request_messages[0]["content"],
+            "用户拒绝了此操作，已取消执行。"
+        );
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn resume_single_tool_call_executes_approved_tool_and_emits_events() {
+        let project_root = make_project_root("approved");
+        let (chat_service, conversation_service) = make_chat_service(project_root);
+        let conversation_id = create_conversation_id(&conversation_service);
+        let executor = ChatExecutor::new(chat_service.clone());
+        let pending = sample_pending(&conversation_id);
+        let tool_call = pending.tool_calls[0].clone();
+        let mut request_messages = Vec::new();
+        let (tx, mut rx): (EventTx, _) = mpsc::channel(8);
+
+        let should_continue = executor
+            .resume_single_tool_call(&pending, &mut request_messages, &tool_call, true, &tx)
+            .await
+            .expect("resume single tool call");
+
+        assert!(should_continue);
+        assert_eq!(request_messages.len(), 1);
+        assert_eq!(request_messages[0]["role"], "tool");
+        assert!(request_messages[0]["content"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("\"ok\": true"));
+
+        let start = drain_event(&mut rx);
+        let done = drain_event(&mut rx);
+        assert_eq!(start["type"], "tool_start");
+        assert_eq!(done["type"], "tool_done");
     }
 }
