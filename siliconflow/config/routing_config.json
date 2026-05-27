@@ -1,7 +1,7 @@
 {
   "enabled": true,
-  "router_model": "functiongemma",
-  "summary_model": "qwen2.5:0.5b",
+  "router_model": "DeepSeek-V4-Pro",
+  "summary_model": "DeepSeek-V4-Pro",
   "tiers": {
     "easy": "MiniMax-M2.7",
     "hard": "DeepSeek-V4-Pro",
