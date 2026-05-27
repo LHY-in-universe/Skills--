@@ -735,6 +735,17 @@ mod tests {
         }
     }
 
+    fn sample_pending_with_tool_calls(
+        conversation_id: &str,
+        tool_calls: Vec<serde_json::Value>,
+        next_index: usize,
+    ) -> PendingPermission {
+        let mut pending = sample_pending(conversation_id);
+        pending.tool_calls = tool_calls;
+        pending.next_index = next_index;
+        pending
+    }
+
     fn drain_event(rx: &mut tokio::sync::mpsc::Receiver<serde_json::Value>) -> serde_json::Value {
         rx.try_recv().expect("expected event")
     }
@@ -793,5 +804,99 @@ mod tests {
         let done = drain_event(&mut rx);
         assert_eq!(start["type"], "tool_start");
         assert_eq!(done["type"], "tool_done");
+    }
+
+    #[tokio::test]
+    async fn resume_single_tool_call_honors_next_index_by_executing_second_tool() {
+        let project_root = make_project_root("next_index");
+        let (chat_service, conversation_service) = make_chat_service(project_root);
+        let conversation_id = create_conversation_id(&conversation_service);
+        let executor = ChatExecutor::new(chat_service.clone());
+        let pending = sample_pending_with_tool_calls(
+            &conversation_id,
+            vec![
+                json!({
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "run_terminal",
+                        "arguments": "{\"command\":\"pwd\"}"
+                    }
+                }),
+                json!({
+                    "id": "call_2",
+                    "type": "function",
+                    "function": {
+                        "name": "run_terminal",
+                        "arguments": "{\"command\":\"pwd\"}"
+                    }
+                }),
+            ],
+            1,
+        );
+        let tool_call = pending.tool_calls[1].clone();
+        let mut request_messages = Vec::new();
+        let (tx, mut rx): (EventTx, _) = mpsc::channel(8);
+
+        let should_continue = executor
+            .resume_single_tool_call(&pending, &mut request_messages, &tool_call, true, &tx)
+            .await
+            .expect("resume tool call from next_index");
+
+        assert!(should_continue);
+        assert_eq!(request_messages.len(), 1);
+        assert_eq!(request_messages[0]["tool_call_id"], "call_2");
+
+        let start = drain_event(&mut rx);
+        let done = drain_event(&mut rx);
+        assert_eq!(start["type"], "tool_start");
+        assert_eq!(done["type"], "tool_done");
+    }
+
+    #[tokio::test]
+    async fn resume_single_tool_call_denied_still_targets_current_next_index_tool() {
+        let project_root = make_project_root("deny_next_index");
+        let (chat_service, conversation_service) = make_chat_service(project_root);
+        let conversation_id = create_conversation_id(&conversation_service);
+        let executor = ChatExecutor::new(chat_service.clone());
+        let pending = sample_pending_with_tool_calls(
+            &conversation_id,
+            vec![
+                json!({
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "run_terminal",
+                        "arguments": "{\"command\":\"pwd\"}"
+                    }
+                }),
+                json!({
+                    "id": "call_2",
+                    "type": "function",
+                    "function": {
+                        "name": "run_terminal",
+                        "arguments": "{\"command\":\"pwd\"}"
+                    }
+                }),
+            ],
+            1,
+        );
+        let tool_call = pending.tool_calls[1].clone();
+        let mut request_messages = Vec::new();
+        let (tx, mut rx): (EventTx, _) = mpsc::channel(8);
+
+        let should_continue = executor
+            .resume_single_tool_call(&pending, &mut request_messages, &tool_call, false, &tx)
+            .await
+            .expect("resume denied tool call from next_index");
+
+        assert!(!should_continue);
+        assert_eq!(request_messages.len(), 1);
+        assert_eq!(request_messages[0]["tool_call_id"], "call_2");
+        assert_eq!(
+            request_messages[0]["content"],
+            "用户拒绝了此操作，已取消执行。"
+        );
+        assert!(rx.try_recv().is_err());
     }
 }
