@@ -13,6 +13,20 @@ const recentFailover = ref([])
 const observabilitySummary = ref(null)
 const observabilityEvents = ref([])
 
+const redactSecrets = (value) => {
+  if (Array.isArray(value)) return value.map(redactSecrets)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => {
+      const lowered = key.toLowerCase()
+      if (lowered.includes('key') || lowered.includes('secret') || lowered.includes('token')) {
+        return [key, nested ? '***' : nested]
+      }
+      return [key, redactSecrets(nested)]
+    }),
+  )
+}
+
 const loadDiagnostics = async () => {
   try {
     const [tokens, doctor, security, auth, health, failover, summary, events] = await Promise.all([
@@ -82,7 +96,7 @@ onMounted(loadDiagnostics)
       </div>
       <div class="card">
         <div class="section-headline"><h3>鉴权画像</h3></div>
-        <pre class="compact-pre">{{ JSON.stringify(authProfiles, null, 2) }}</pre>
+        <pre class="compact-pre">{{ JSON.stringify(redactSecrets(authProfiles), null, 2) }}</pre>
       </div>
       <div class="card">
         <div class="section-headline"><h3>安全审计</h3></div>
