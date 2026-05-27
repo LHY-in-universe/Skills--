@@ -37,6 +37,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/security-audit", get(handlers::get_security_audit))
         .route("/api/auth-profiles", get(handlers::get_auth_profiles))
         .route("/api/runtime-health", get(handlers::get_runtime_health))
+        .route("/api/model-connectivity", get(handlers::get_model_connectivity))
         .route("/api/failover/recent", get(handlers::get_failover_recent))
         .route(
             "/api/observability/summary",

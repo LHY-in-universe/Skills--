@@ -6,6 +6,7 @@
 //! 件只追加 `impl ConfigService { ... }` 块，handler 层签名保持不变。
 
 pub mod auth;
+pub mod connectivity;
 pub mod models;
 pub mod observability;
 pub mod routing;

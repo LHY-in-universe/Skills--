@@ -108,6 +108,17 @@ pub async fn get_runtime_health(
     Ok(Json(health))
 }
 
+pub async fn get_model_connectivity(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .model_connectivity_check()
+        .await
+        .map(Json)
+        .map_err(internal_error)
+}
+
 pub async fn get_lark_config(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {

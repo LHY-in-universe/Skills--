@@ -9,6 +9,7 @@ const doctorReport = ref(null)
 const securityReport = ref(null)
 const authProfiles = ref(null)
 const runtimeHealth = ref(null)
+const modelConnectivity = ref(null)
 const recentFailover = ref([])
 const observabilitySummary = ref(null)
 const observabilityEvents = ref([])
@@ -29,12 +30,13 @@ const redactSecrets = (value) => {
 
 const loadDiagnostics = async () => {
   try {
-    const [tokens, doctor, security, auth, health, failover, summary, events] = await Promise.all([
+    const [tokens, doctor, security, auth, health, connectivity, failover, summary, events] = await Promise.all([
       api.get('/api/token-usage'),
       api.get('/api/doctor'),
       api.get('/api/security-audit'),
       api.get('/api/auth-profiles'),
       api.get('/api/runtime-health'),
+      api.get('/api/model-connectivity'),
       api.get('/api/failover/recent?limit=8'),
       api.get('/api/observability/summary'),
       api.get('/api/observability/events?limit=20'),
@@ -44,6 +46,7 @@ const loadDiagnostics = async () => {
     securityReport.value = security
     authProfiles.value = auth
     runtimeHealth.value = health
+    modelConnectivity.value = connectivity
     recentFailover.value = Array.isArray(failover?.items) ? failover.items : []
     observabilitySummary.value = summary
     observabilityEvents.value = Array.isArray(events?.items) ? events.items : []
@@ -102,6 +105,11 @@ onMounted(loadDiagnostics)
         <div class="section-headline"><h3>安全审计</h3></div>
         <pre class="compact-pre">{{ JSON.stringify(securityReport, null, 2) }}</pre>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="section-headline"><h3>模型连通性</h3></div>
+      <pre class="compact-pre">{{ JSON.stringify(modelConnectivity, null, 2) }}</pre>
     </div>
 
     <div class="card">
