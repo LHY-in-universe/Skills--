@@ -43,7 +43,7 @@
 ```json
 {
   "DeepSeek-Chat": {
-    "id": "deepseek-chat",
+    "id": "deepseek-v4-pro",
     "provider": "deepseek",
     "api_url": null,
     "enabled": true,

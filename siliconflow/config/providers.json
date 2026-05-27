@@ -39,7 +39,7 @@
     {
       "id": "minimax",
       "label": "MiniMax",
-      "default_api_url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
+      "default_api_url": "https://api.minimax.chat/v1/chat/completions",
       "required_env_keys": ["MINIMAX_API_KEY"],
       "api_protocol": "openai-chat"
     },
