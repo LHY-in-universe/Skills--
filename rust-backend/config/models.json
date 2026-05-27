@@ -1,7 +1,7 @@
 {
-  "DeepSeek-Chat": {
+  "DeepSeek-V4-Pro": {
     "enabled": true,
-    "id": "deepseek-chat",
+    "id": "deepseek-v4-pro",
     "provider": "deepseek"
   },
   "FunctionGemma": {
@@ -35,6 +35,16 @@
     "enabled": false,
     "id": "kimi/kimi-code",
     "provider": "kimi"
+  },
+  "MiniMax-M2.7": {
+    "enabled": true,
+    "id": "MiniMax-M2.7",
+    "provider": "minimax"
+  },
+  "MiMo-2.5-Pro": {
+    "enabled": true,
+    "id": "MiMo-2.5-Pro",
+    "provider": "siliconflow"
   },
   "NVIDIA-Llama-3.3-Nemotron-Super-49B": {
     "enabled": false,

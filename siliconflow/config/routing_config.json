@@ -3,8 +3,8 @@
   "router_model": "functiongemma",
   "summary_model": "qwen2.5:0.5b",
   "tiers": {
-    "easy": "DeepSeek-Chat",
-    "hard": "kimi/kimi-code",
-    "medium": "nvidia/llama-3.3-nemotron-super-49b-v1"
+    "easy": "MiniMax-M2.7",
+    "hard": "DeepSeek-V4-Pro",
+    "medium": "MiMo-2.5-Pro"
   }
 }
