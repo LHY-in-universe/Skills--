@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use reqwest::RequestBuilder;
 
 #[derive(Clone)]
 pub struct ConfigService {
@@ -163,6 +164,20 @@ impl ConfigService {
             }
         }
         ProviderDisplay::SiliconFlow.default_api_url().to_string()
+    }
+
+    pub fn apply_provider_auth(
+        &self,
+        request: RequestBuilder,
+        provider_id: &str,
+        api_key: &str,
+    ) -> RequestBuilder {
+        if api_key.trim().is_empty() {
+            return request;
+        }
+        match provider_id {
+            _ => request.bearer_auth(api_key),
+        }
     }
 
     pub fn reload(&self) -> anyhow::Result<()> {

@@ -316,10 +316,11 @@ impl ChatService {
         let payload =
             self.provider_driver
                 .build_payload(&prepared.model_id, &outbound_messages, &tools);
-        let mut request = self.http_client.post(&prepared.api_url);
-        if !prepared.api_key.trim().is_empty() {
-            request = request.bearer_auth(&prepared.api_key);
-        }
+        let request = self.config_service.apply_provider_auth(
+            self.http_client.post(&prepared.api_url),
+            &prepared.provider,
+            &prepared.api_key,
+        );
         let resp = request
             .json(&payload)
             .send()
@@ -646,10 +647,9 @@ impl ChatService {
         if let Some(obj) = payload.as_object_mut() {
             obj.remove("stream_options");
         }
-        let mut request = self.http_client.post(&api_url);
-        if !api_key.trim().is_empty() {
-            request = request.bearer_auth(&api_key);
-        }
+        let request =
+            self.config_service
+                .apply_provider_auth(self.http_client.post(&api_url), &summary_spec.provider, &api_key);
         let result: anyhow::Result<String> = async {
             let resp = request.json(&payload).send().await?;
             if !resp.status().is_success() {
@@ -731,10 +731,11 @@ impl ChatService {
         if let Some(obj) = payload.as_object_mut() {
             obj.remove("stream_options");
         }
-        let mut request = self.http_client.post(&router_api_url);
-        if !router_api_key.trim().is_empty() {
-            request = request.bearer_auth(&router_api_key);
-        }
+        let request = self.config_service.apply_provider_auth(
+            self.http_client.post(&router_api_url),
+            &router_spec.provider,
+            &router_api_key,
+        );
         let resp = request
             .json(&payload)
             .send()

@@ -74,9 +74,8 @@ impl ConfigService {
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(20))
                 .build()?;
-            let result = client
-                .post(&api_url)
-                .bearer_auth(api_key)
+            let result = self
+                .apply_provider_auth(client.post(&api_url), &spec.provider, &api_key)
                 .json(&payload)
                 .send()
                 .await;

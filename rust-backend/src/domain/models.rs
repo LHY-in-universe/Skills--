@@ -230,7 +230,7 @@ impl ProviderDisplay {
             Self::OpenAI => "https://api.openai.com/v1/chat/completions",
             Self::Anthropic => "https://api.anthropic.com/v1/messages",
             Self::Google => "https://generativelanguage.googleapis.com/v1beta/chat/completions",
-            Self::MiniMax => "https://api.minimax.chat/v1/chat/completions",
+            Self::MiniMax => "https://api.minimaxi.com/v1/chat/completions",
             Self::ZhiPu => "https://open.bigmodel.cn/api/paas/v4/chat/completions",
             Self::Moonshot => "https://api.moonshot.cn/v1/chat/completions",
             Self::Qwen => "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
