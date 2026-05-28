@@ -84,6 +84,8 @@ impl ConfigService {
                 Ok(resp) => {
                     let status = resp.status();
                     let body = resp.text().await.unwrap_or_default();
+                    let (diagnosis, recommendation) =
+                        classify_connectivity_failure(&spec.provider, status.as_u16(), &body);
                     items.push(json!({
                         "model_name": name,
                         "model_id": spec.id,
@@ -91,17 +93,22 @@ impl ConfigService {
                         "api_url": api_url,
                         "ok": status.is_success(),
                         "status": status.as_u16(),
-                        "error": if status.is_success() { Value::Null } else { Value::String(body.chars().take(240).collect()) }
+                        "error": if status.is_success() { Value::Null } else { Value::String(body.chars().take(240).collect()) },
+                        "diagnosis": diagnosis,
+                        "recommendation": recommendation
                     }));
                 }
                 Err(err) => {
+                    let message = err.to_string();
                     items.push(json!({
                         "model_name": name,
                         "model_id": spec.id,
                         "provider": spec.provider,
                         "api_url": api_url,
                         "ok": false,
-                        "error": err.to_string()
+                        "error": message,
+                        "diagnosis": "network_or_transport_error",
+                        "recommendation": "检查本机网络、代理设置、TLS 连接和 provider 域名是否可直连"
                     }));
                 }
             }
@@ -116,4 +123,52 @@ impl ConfigService {
             "items": items
         }))
     }
+}
+
+fn classify_connectivity_failure(
+    provider: &str,
+    status: u16,
+    body: &str,
+) -> (&'static str, &'static str) {
+    let lowered = body.to_lowercase();
+    if status == 401 {
+        if provider == "siliconflow" && lowered.contains("api key is invalid") {
+            return (
+                "invalid_provider_api_key",
+                "当前 SILICONFLOW_API_KEY 对官方接口无效；请更换有效 key 后重试",
+            );
+        }
+        if provider == "minimax" && lowered.contains("authorized_error") {
+            return (
+                "invalid_or_unsupported_minimax_key",
+                "当前 MiniMax key 无法通过官方 chat/completions 鉴权；请确认 key 类型、账号权限或重新生成正式 API key",
+            );
+        }
+        return (
+            "unauthorized",
+            "鉴权失败；请检查 provider 对应 API key、账号权限和模型访问范围",
+        );
+    }
+    if status == 403 {
+        return (
+            "forbidden_or_no_model_access",
+            "账号已通过鉴权但没有该模型访问权限；请检查模型开通状态和套餐权限",
+        );
+    }
+    if status == 404 {
+        return (
+            "endpoint_or_model_not_found",
+            "接口地址或模型名无效；请检查 provider endpoint 与 model id 是否为官方正式值",
+        );
+    }
+    if status >= 500 {
+        return (
+            "provider_server_error",
+            "provider 侧服务异常；稍后重试，必要时切换回退模型",
+        );
+    }
+    (
+        "unknown_failure",
+        "请结合 error 字段原文进一步排查 provider 鉴权、模型名或网络链路",
+    )
 }

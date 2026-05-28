@@ -109,6 +109,21 @@ onMounted(loadDiagnostics)
 
     <div class="card">
       <div class="section-headline"><h3>模型连通性</h3></div>
+      <div v-if="Array.isArray(modelConnectivity?.items)" class="stack-gap">
+        <div v-for="item in modelConnectivity.items" :key="item.model_name" class="subcard">
+          <div class="section-headline">
+            <strong>{{ item.model_name }}</strong>
+            <span class="pill" :class="item.ok ? 'success' : 'danger'">{{ item.ok ? 'OK' : 'FAIL' }}</span>
+          </div>
+          <div class="meta-grid compact">
+            <div><span class="muted">Provider</span><strong>{{ item.provider || '-' }}</strong></div>
+            <div><span class="muted">HTTP</span><strong>{{ item.status ?? '-' }}</strong></div>
+            <div><span class="muted">诊断</span><strong>{{ item.diagnosis || '-' }}</strong></div>
+          </div>
+          <p v-if="item.recommendation" class="muted">{{ item.recommendation }}</p>
+          <pre class="compact-pre">{{ JSON.stringify(item, null, 2) }}</pre>
+        </div>
+      </div>
       <pre class="compact-pre">{{ JSON.stringify(modelConnectivity, null, 2) }}</pre>
     </div>
 
