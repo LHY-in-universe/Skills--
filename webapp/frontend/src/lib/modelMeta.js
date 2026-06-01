@@ -6,6 +6,7 @@ export const PROVIDER_MAP = {
   google: 'Google',
   gemini: 'Google',
   minimax: 'MiniMax',
+  mimo: 'MiMo',
   zhipu: 'ZhiPu',
   glm: 'ZhiPu',
   kimi: 'Moonshot',
@@ -58,6 +59,7 @@ export const getProviderFromModelId = (apiId) => {
   if (id.includes('gpt') || id.includes('o1') || id.includes('o3') || id.includes('o4')) return 'OpenAI'
   if (id.includes('gemini') || id.includes('gemma')) return 'Google'
   if (id.includes('grok')) return 'xAI'
+  if (id.includes('mimo')) return 'MiMo'
   if (id.includes('minimax') || id.includes('abab')) return 'MiniMax'
   if (id.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) return 'ZhiPu'
   if (id.includes('qwen')) return 'Qwen'

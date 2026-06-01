@@ -44,6 +44,13 @@
       "api_protocol": "openai-chat"
     },
     {
+      "id": "mimo",
+      "label": "MiMo",
+      "default_api_url": "https://api.xiaomimimo.com/v1/chat/completions",
+      "required_env_keys": ["MIMO_API_KEY"],
+      "api_protocol": "openai-chat"
+    },
+    {
       "id": "zhipu",
       "label": "ZhiPu",
       "aliases": ["glm"],

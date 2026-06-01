@@ -43,8 +43,8 @@
   },
   "MiMo-2.5-Pro": {
     "enabled": false,
-    "id": "MiMo-2.5-Pro",
-    "provider": "siliconflow"
+    "id": "mimo-v2.5-pro",
+    "provider": "mimo"
   },
   "NVIDIA-Llama-3.3-Nemotron-Super-49B": {
     "enabled": false,

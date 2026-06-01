@@ -67,10 +67,10 @@ def main():
             "deepseek-v4-pro",
         ),
         (
-            "SiliconFlow/MiMo",
-            "https://api.siliconflow.cn/v1/chat/completions",
-            env.get("SILICONFLOW_API_KEY", ""),
-            "MiMo-2.5-Pro",
+            "MiMo",
+            "https://api.xiaomimimo.com/v1/chat/completions",
+            env.get("MIMO_API_KEY", ""),
+            "mimo-v2.5-pro",
         ),
         (
             "MiniMax",

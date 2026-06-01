@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
+import { loadConnectivityMap } from '../lib/connectivity'
 import { getProviderName } from '../lib/modelMeta'
 
 const models = inject('models')
@@ -72,9 +73,7 @@ const loadProviderCatalog = async () => {
 
 const loadConnectivity = async () => {
   try {
-    const data = await api.get('/api/model-connectivity')
-    const items = Array.isArray(data?.items) ? data.items : []
-    connectivityMap.value = Object.fromEntries(items.map((item) => [item.model_name, item]))
+    connectivityMap.value = await loadConnectivityMap(api)
   } catch (err) {
     connectivityMap.value = {}
     notify(`加载模型连通性失败: ${err.message}`, 'error')
