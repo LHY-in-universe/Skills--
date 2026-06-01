@@ -150,7 +150,10 @@ onMounted(async () => {
         <h2>模型管理</h2>
         <p>切换当前模型，维护模型列表和 provider 配置。</p>
       </div>
-      <button type="button" class="btn-secondary" @click="appActions.refreshGlobalData()">刷新</button>
+      <div class="inline-actions">
+        <button type="button" class="btn-secondary" @click="loadConnectivity()">刷新连通性</button>
+        <button type="button" class="btn-secondary" @click="appActions.refreshGlobalData()">刷新</button>
+      </div>
     </div>
 
     <div class="card">

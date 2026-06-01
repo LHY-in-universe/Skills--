@@ -1,5 +1,6 @@
 <script setup>
-import { inject } from 'vue'
+import { inject, onMounted, ref } from 'vue'
+import { loadConnectivityMap } from '../lib/connectivity'
 
 const models = inject('models')
 const currentModel = inject('currentModel')
@@ -7,20 +8,40 @@ const routingConfig = inject('routingConfig')
 const api = inject('apiClient')
 const notify = inject('notify', (msg) => window.alert(msg))
 const appActions = inject('appActions')
+const connectivityMap = ref({})
 
 const connectivityFor = (name) => {
   return models.value?.find((model) => model.displayName === name) ? name : ''
+}
+
+const connectivityStatus = (name) => {
+  const item = connectivityMap.value[name]
+  if (!name) return '未设置'
+  if (!item) return '未检查'
+  return item.ok ? '连通 OK' : `连通 FAIL${item.status ? ` (${item.status})` : ''}`
+}
+
+const loadConnectivity = async () => {
+  try {
+    connectivityMap.value = await loadConnectivityMap(api)
+  } catch (err) {
+    connectivityMap.value = {}
+    notify(`加载路由连通性失败: ${err.message}`, 'error')
+  }
 }
 
 const saveRouting = async () => {
   try {
     await api.post('/api/routing', routingConfig.value)
     await appActions.refreshGlobalData()
+    await loadConnectivity()
     notify('路由配置已保存', 'success')
   } catch (err) {
     notify(`保存失败: ${err.message}`, 'error')
   }
 }
+
+onMounted(loadConnectivity)
 </script>
 
 <template>
@@ -30,7 +51,10 @@ const saveRouting = async () => {
         <h2>路由策略</h2>
         <p>配置路由开关、分类器模型、摘要模型和 tier 映射。</p>
       </div>
-      <button class="btn-primary" @click="saveRouting">保存</button>
+      <div class="inline-actions">
+        <button class="btn-secondary" @click="loadConnectivity">刷新连通性</button>
+        <button class="btn-primary" @click="saveRouting">保存</button>
+      </div>
     </div>
 
     <div class="card">
@@ -44,11 +68,11 @@ const saveRouting = async () => {
         </div>
         <div>
           <span class="muted">分类器模型</span>
-          <strong>{{ routingConfig.router_model || '未设置' }}</strong>
+          <strong>{{ routingConfig.router_model || '未设置' }} / {{ connectivityStatus(routingConfig.router_model) }}</strong>
         </div>
         <div>
           <span class="muted">摘要模型</span>
-          <strong>{{ routingConfig.summary_model || '未设置' }}</strong>
+          <strong>{{ routingConfig.summary_model || '未设置' }} / {{ connectivityStatus(routingConfig.summary_model) }}</strong>
         </div>
         <div>
           <span class="muted">默认模型</span>
@@ -63,6 +87,14 @@ const saveRouting = async () => {
           <strong>
             {{ connectivityFor(routingConfig.router_model) ? 'Router 已绑定' : 'Router 未绑定' }} /
             {{ connectivityFor(routingConfig.summary_model) ? 'Summary 已绑定' : 'Summary 未绑定' }}
+          </strong>
+        </div>
+        <div>
+          <span class="muted">Tier 连通性</span>
+          <strong>
+            E: {{ connectivityStatus(routingConfig.tiers.easy) }} /
+            M: {{ connectivityStatus(routingConfig.tiers.medium) }} /
+            H: {{ connectivityStatus(routingConfig.tiers.hard) }}
           </strong>
         </div>
       </div>
