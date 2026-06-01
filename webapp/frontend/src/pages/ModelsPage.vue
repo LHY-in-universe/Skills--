@@ -14,6 +14,8 @@ const providerCatalog = ref([])
 const editableModels = ref([])
 const connectivityMap = ref({})
 const localModelStatus = ref(null)
+const localServiceAction = ref('')
+const localModelActionMap = ref({})
 const newModelName = ref('')
 const newModelId = ref('')
 const newModelProvider = ref('siliconflow')
@@ -163,42 +165,60 @@ const deleteModel = async (name) => {
 }
 
 const controlLocalService = async (action) => {
+  localServiceAction.value = action
   try {
     await api.post('/api/local-models/service', { action })
     await loadLocalModelStatus()
     notify(`本地模型服务${action === 'start' ? '启动' : '停止'}指令已发送`, 'success')
   } catch (err) {
     notify(`本地模型服务操作失败: ${err.message}`, 'error')
+  } finally {
+    localServiceAction.value = ''
   }
 }
 
 const pullLocalModel = async (modelId) => {
+  localModelActionMap.value = { ...localModelActionMap.value, [modelId]: 'pull' }
   try {
     await api.post('/api/local-models/pull', { model: modelId })
     await loadLocalModelStatus()
     notify(`模型下载完成: ${modelId}`, 'success')
   } catch (err) {
     notify(`模型下载失败: ${err.message}`, 'error')
+  } finally {
+    const next = { ...localModelActionMap.value }
+    delete next[modelId]
+    localModelActionMap.value = next
   }
 }
 
 const loadLocalModel = async (modelId) => {
+  localModelActionMap.value = { ...localModelActionMap.value, [modelId]: 'load' }
   try {
     await api.post('/api/local-models/load', { model: modelId })
     await loadLocalModelStatus()
     notify(`模型已预热: ${modelId}`, 'success')
   } catch (err) {
     notify(`模型预热失败: ${err.message}`, 'error')
+  } finally {
+    const next = { ...localModelActionMap.value }
+    delete next[modelId]
+    localModelActionMap.value = next
   }
 }
 
 const unloadLocalModel = async (modelId) => {
+  localModelActionMap.value = { ...localModelActionMap.value, [modelId]: 'unload' }
   try {
     await api.post('/api/local-models/unload', { model: modelId })
     await loadLocalModelStatus()
     notify(`模型已释放: ${modelId}`, 'success')
   } catch (err) {
     notify(`模型释放失败: ${err.message}`, 'error')
+  } finally {
+    const next = { ...localModelActionMap.value }
+    delete next[modelId]
+    localModelActionMap.value = next
   }
 }
 
@@ -239,8 +259,12 @@ onMounted(async () => {
       </div>
       <div class="inline-actions" style="margin-bottom: 12px;">
         <button type="button" class="btn-secondary" @click="loadLocalModelStatus()">刷新状态</button>
-        <button type="button" class="btn-secondary" @click="controlLocalService('start')">启动服务</button>
-        <button type="button" class="btn-danger" @click="controlLocalService('stop')">停止服务</button>
+        <button type="button" class="btn-secondary" :disabled="!!localServiceAction" @click="controlLocalService('start')">
+          {{ localServiceAction === 'start' ? '启动中...' : '启动服务' }}
+        </button>
+        <button type="button" class="btn-danger" :disabled="!!localServiceAction" @click="controlLocalService('stop')">
+          {{ localServiceAction === 'stop' ? '停止中...' : '停止服务' }}
+        </button>
       </div>
       <div class="stack-gap">
         <div v-for="model in localModels" :key="`local-${model.displayName}`" class="subcard">
@@ -252,9 +276,15 @@ onMounted(async () => {
               </div>
             </div>
             <div class="inline-actions">
-              <button type="button" class="btn-secondary" @click="pullLocalModel(model.apiId)">下载</button>
-              <button type="button" class="btn-secondary" @click="loadLocalModel(model.apiId)">启动/预热</button>
-              <button type="button" class="btn-danger" @click="unloadLocalModel(model.apiId)">结束/释放</button>
+              <button type="button" class="btn-secondary" :disabled="!!localModelActionMap[model.apiId]" @click="pullLocalModel(model.apiId)">
+                {{ localModelActionMap[model.apiId] === 'pull' ? '下载中...' : '下载' }}
+              </button>
+              <button type="button" class="btn-secondary" :disabled="!!localModelActionMap[model.apiId]" @click="loadLocalModel(model.apiId)">
+                {{ localModelActionMap[model.apiId] === 'load' ? '预热中...' : '启动/预热' }}
+              </button>
+              <button type="button" class="btn-danger" :disabled="!!localModelActionMap[model.apiId]" @click="unloadLocalModel(model.apiId)">
+                {{ localModelActionMap[model.apiId] === 'unload' ? '释放中...' : '结束/释放' }}
+              </button>
             </div>
           </div>
           <div class="meta-grid compact">
