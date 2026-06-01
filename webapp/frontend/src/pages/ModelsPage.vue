@@ -58,6 +58,16 @@ const localModels = computed(() =>
   (editableModels.value || []).filter((model) => model.provider === 'local')
 )
 
+const installedLocalModelMap = computed(() => {
+  const items = Array.isArray(localModelStatus.value?.installed_models) ? localModelStatus.value.installed_models : []
+  return Object.fromEntries(items.map((item) => [item.model, item]))
+})
+
+const loadedLocalModelMap = computed(() => {
+  const items = Array.isArray(localModelStatus.value?.loaded_models) ? localModelStatus.value.loaded_models : []
+  return Object.fromEntries(items.map((item) => [item.model, item]))
+})
+
 watch(models, (nextModels) => {
   editableModels.value = (nextModels || []).map((model) => ({
     ...model,
@@ -250,6 +260,8 @@ onMounted(async () => {
           <div class="meta-grid compact">
             <div><span class="muted">模型 ID</span><strong>{{ model.apiId }}</strong></div>
             <div><span class="muted">服务</span><strong>{{ localModelStatus?.service_running ? '运行中' : '未运行' }}</strong></div>
+            <div><span class="muted">已下载</span><strong>{{ installedLocalModelMap[model.apiId] ? '是' : '否' }}</strong></div>
+            <div><span class="muted">已加载</span><strong>{{ loadedLocalModelMap[model.apiId] ? '是' : '否' }}</strong></div>
           </div>
         </div>
       </div>

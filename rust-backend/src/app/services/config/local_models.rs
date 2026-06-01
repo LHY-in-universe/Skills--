@@ -6,31 +6,43 @@ use tokio::process::Command;
 
 impl ConfigService {
     pub async fn local_model_status(&self) -> anyhow::Result<Value> {
-        let api_url = "http://127.0.0.1:11434/api/tags";
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
             .build()?;
-        let result = client.get(api_url).send().await;
-        match result {
+        let tags_result = client.get("http://127.0.0.1:11434/api/tags").send().await;
+        let ps_result = client.get("http://127.0.0.1:11434/api/ps").send().await;
+
+        match tags_result {
             Ok(resp) => {
                 let status = resp.status();
                 let body: Value = resp.json().await.unwrap_or_else(|_| json!({}));
-                let models = body
+                let installed = body
                     .get("models")
                     .and_then(|v| v.as_array())
                     .cloned()
                     .unwrap_or_default();
+                let loaded = match ps_result {
+                    Ok(ps) if ps.status() == StatusCode::OK => ps
+                        .json::<Value>()
+                        .await
+                        .ok()
+                        .and_then(|v| v.get("models").and_then(|m| m.as_array()).cloned())
+                        .unwrap_or_default(),
+                    _ => Vec::new(),
+                };
                 Ok(json!({
                     "service_running": status == StatusCode::OK,
                     "status": status.as_u16(),
-                    "models": models
+                    "installed_models": installed,
+                    "loaded_models": loaded
                 }))
             }
             Err(err) => Ok(json!({
                 "service_running": false,
                 "status": null,
                 "error": err.to_string(),
-                "models": []
+                "installed_models": [],
+                "loaded_models": []
             })),
         }
     }
