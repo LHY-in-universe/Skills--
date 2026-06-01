@@ -43,6 +43,10 @@ DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
 # 可选：MiniMax
 MINIMAX_API_KEY=your_minimax_key
 MINIMAX_API_URL=https://api.minimaxi.com/v1/chat/completions
+
+# 可选：MiMo
+MIMO_API_KEY=your_mimo_key
+MIMO_API_URL=https://api.xiaomimimo.com/v1/chat/completions
 ```
 
 ### 2) 启动后端（Rust）
@@ -94,7 +98,7 @@ python3 siliconflow/scripts/check_model_connectivity.py
 当前脚本会真实请求：
 
 - `DeepSeek` → `deepseek-v4-pro`
-- `SiliconFlow` → `MiMo-2.5-Pro`
+- `MiMo` → `mimo-v2.5-pro`
 - `MiniMax` → `MiniMax-M2.7`
 
 如果某项失败，优先检查：

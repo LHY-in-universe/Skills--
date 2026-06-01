@@ -37,6 +37,12 @@ pip install openai python-dotenv
 ```bash
 SILICONFLOW_API_KEY=your_key_here
 SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+
+MINIMAX_API_KEY=your_minimax_key
+MINIMAX_API_URL=https://api.minimaxi.com/v1/chat/completions
+
+MIMO_API_KEY=your_mimo_key
+MIMO_API_URL=https://api.xiaomimimo.com/v1/chat/completions
 ```
 
 3. 启动 CLI 对话

@@ -132,6 +132,12 @@ fn classify_connectivity_failure(
 ) -> (&'static str, &'static str) {
     let lowered = body.to_lowercase();
     if status == 401 {
+        if provider == "mimo" && lowered.contains("invalid api key") {
+            return (
+                "invalid_mimo_api_key",
+                "当前 MIMO_API_KEY 对 MiMo 官方接口无效；请在 siliconflow/config/.env 中更换有效的 MiMo 平台 key 后重试",
+            );
+        }
         if provider == "siliconflow" && lowered.contains("api key is invalid") {
             return (
                 "invalid_provider_api_key",
