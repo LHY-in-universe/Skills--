@@ -2,6 +2,7 @@
 import { inject } from 'vue'
 
 const models = inject('models')
+const currentModel = inject('currentModel')
 const routingConfig = inject('routingConfig')
 const api = inject('apiClient')
 const notify = inject('notify', (msg) => window.alert(msg))
@@ -44,6 +45,10 @@ const saveRouting = async () => {
         <div>
           <span class="muted">摘要模型</span>
           <strong>{{ routingConfig.summary_model || '未设置' }}</strong>
+        </div>
+        <div>
+          <span class="muted">默认模型</span>
+          <strong>{{ currentModel || '未设置' }}</strong>
         </div>
         <div>
           <span class="muted">Easy / Medium / Hard</span>

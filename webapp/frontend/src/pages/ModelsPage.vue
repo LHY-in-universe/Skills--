@@ -4,6 +4,7 @@ import { getProviderName } from '../lib/modelMeta'
 
 const models = inject('models')
 const currentModel = inject('currentModel')
+const routingConfig = inject('routingConfig')
 const api = inject('apiClient')
 const notify = inject('notify', (msg) => window.alert(msg))
 const appActions = inject('appActions')
@@ -21,6 +22,24 @@ const providerMetaById = computed(() =>
 
 const selectedProviderMeta = computed(() => providerMetaById.value[newModelProvider.value] || null)
 const activeModelName = computed(() => currentModel.value || '')
+const routingRoles = computed(() => ({
+  router: routingConfig.value?.router_model || '',
+  summary: routingConfig.value?.summary_model || '',
+  easy: routingConfig.value?.tiers?.easy || '',
+  medium: routingConfig.value?.tiers?.medium || '',
+  hard: routingConfig.value?.tiers?.hard || '',
+}))
+
+const modelRoleBadges = (displayName) => {
+  const roles = []
+  if (displayName === activeModelName.value) roles.push('默认')
+  if (displayName === routingRoles.value.router) roles.push('Router')
+  if (displayName === routingRoles.value.summary) roles.push('Summary')
+  if (displayName === routingRoles.value.easy) roles.push('Easy')
+  if (displayName === routingRoles.value.medium) roles.push('Medium')
+  if (displayName === routingRoles.value.hard) roles.push('Hard')
+  return roles
+}
 
 const groupedModels = computed(() => {
   const groups = {}
@@ -119,6 +138,18 @@ onMounted(loadProviderCatalog)
     </div>
 
     <div class="card">
+      <div class="section-headline">
+        <h3>当前绑定</h3>
+      </div>
+      <div class="meta-grid compact">
+        <div><span class="muted">默认模型</span><strong>{{ activeModelName || '未设置' }}</strong></div>
+        <div><span class="muted">Router</span><strong>{{ routingRoles.router || '未设置' }}</strong></div>
+        <div><span class="muted">Summary</span><strong>{{ routingRoles.summary || '未设置' }}</strong></div>
+        <div><span class="muted">Easy / Medium / Hard</span><strong>{{ routingRoles.easy || '-' }} / {{ routingRoles.medium || '-' }} / {{ routingRoles.hard || '-' }}</strong></div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="form-grid two-col">
         <label class="field">
           <span>模型显示名</span>
@@ -153,7 +184,9 @@ onMounted(loadProviderCatalog)
         <div class="card-topline">
           <div>
             <strong>{{ model.displayName }}</strong>
-            <span v-if="model.displayName === activeModelName" class="pill success">当前</span>
+            <div class="inline-badges">
+              <span v-for="role in modelRoleBadges(model.displayName)" :key="role" class="pill success">{{ role }}</span>
+            </div>
           </div>
           <div class="inline-actions">
             <button type="button" class="btn-secondary" @click="switchModel(model.displayName)">设为当前</button>
