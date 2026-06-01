@@ -1,6 +1,6 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { loadConnectivityMap } from '../lib/connectivity'
+import { connectivityRecommendation, loadConnectivityMap } from '../lib/connectivity'
 import { getProviderName } from '../lib/modelMeta'
 
 const models = inject('models')
@@ -240,6 +240,10 @@ onMounted(async () => {
           <label class="field" v-if="connectivityMap[model.displayName]">
             <span>连通性诊断</span>
             <input :value="connectivityMap[model.displayName].diagnosis || '-'" disabled />
+          </label>
+          <label class="field" v-if="connectivityMap[model.displayName] && connectivityRecommendation(connectivityMap[model.displayName])">
+            <span>处理建议</span>
+            <input :value="connectivityRecommendation(connectivityMap[model.displayName])" disabled />
           </label>
         </div>
       </div>

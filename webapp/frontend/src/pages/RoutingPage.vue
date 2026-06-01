@@ -1,6 +1,6 @@
 <script setup>
 import { inject, onMounted, ref } from 'vue'
-import { loadConnectivityMap } from '../lib/connectivity'
+import { connectivityRecommendation, connectivitySummary, loadConnectivityMap } from '../lib/connectivity'
 
 const models = inject('models')
 const currentModel = inject('currentModel')
@@ -17,8 +17,7 @@ const connectivityFor = (name) => {
 const connectivityStatus = (name) => {
   const item = connectivityMap.value[name]
   if (!name) return '未设置'
-  if (!item) return '未检查'
-  return item.ok ? '连通 OK' : `连通 FAIL${item.status ? ` (${item.status})` : ''}`
+  return connectivitySummary(item)
 }
 
 const loadConnectivity = async () => {
@@ -97,6 +96,29 @@ onMounted(loadConnectivity)
             H: {{ connectivityStatus(routingConfig.tiers.hard) }}
           </strong>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-headline">
+        <h3>当前建议</h3>
+      </div>
+      <div class="stack-gap">
+        <p v-if="connectivityRecommendation(connectivityMap[routingConfig.router_model])" class="muted">
+          Router：{{ connectivityRecommendation(connectivityMap[routingConfig.router_model]) }}
+        </p>
+        <p v-if="connectivityRecommendation(connectivityMap[routingConfig.summary_model])" class="muted">
+          Summary：{{ connectivityRecommendation(connectivityMap[routingConfig.summary_model]) }}
+        </p>
+        <p v-if="connectivityRecommendation(connectivityMap[routingConfig.tiers.easy])" class="muted">
+          Easy：{{ connectivityRecommendation(connectivityMap[routingConfig.tiers.easy]) }}
+        </p>
+        <p v-if="connectivityRecommendation(connectivityMap[routingConfig.tiers.medium])" class="muted">
+          Medium：{{ connectivityRecommendation(connectivityMap[routingConfig.tiers.medium]) }}
+        </p>
+        <p v-if="connectivityRecommendation(connectivityMap[routingConfig.tiers.hard])" class="muted">
+          Hard：{{ connectivityRecommendation(connectivityMap[routingConfig.tiers.hard]) }}
+        </p>
       </div>
     </div>
 
