@@ -11,6 +11,7 @@ const appActions = inject('appActions')
 
 const providerCatalog = ref([])
 const editableModels = ref([])
+const connectivityMap = ref({})
 const newModelName = ref('')
 const newModelId = ref('')
 const newModelProvider = ref('siliconflow')
@@ -69,6 +70,17 @@ const loadProviderCatalog = async () => {
   }
 }
 
+const loadConnectivity = async () => {
+  try {
+    const data = await api.get('/api/model-connectivity')
+    const items = Array.isArray(data?.items) ? data.items : []
+    connectivityMap.value = Object.fromEntries(items.map((item) => [item.model_name, item]))
+  } catch (err) {
+    connectivityMap.value = {}
+    notify(`加载模型连通性失败: ${err.message}`, 'error')
+  }
+}
+
 const switchModel = async (modelName) => {
   try {
     await api.post('/api/chat/abort').catch(() => {})
@@ -94,6 +106,7 @@ const addModel = async () => {
     newModelProvider.value = 'siliconflow'
     newModelUrl.value = ''
     await appActions.refreshGlobalData()
+    await loadConnectivity()
     notify('模型已添加', 'success')
   } catch (err) {
     notify(`添加模型失败: ${err.message}`, 'error')
@@ -108,6 +121,7 @@ const updateModel = async (model) => {
       provider: model.provider || undefined,
     })
     await appActions.refreshGlobalData()
+    await loadConnectivity()
     notify(`${model.displayName} 已保存`, 'success')
   } catch (err) {
     notify(`保存失败: ${err.message}`, 'error')
@@ -118,13 +132,16 @@ const deleteModel = async (name) => {
   try {
     await api.del(`/api/models/${encodeURIComponent(name)}`)
     await appActions.refreshGlobalData()
+    await loadConnectivity()
     notify(`已删除模型: ${name}`, 'success')
   } catch (err) {
     notify(`删除失败: ${err.message}`, 'error')
   }
 }
 
-onMounted(loadProviderCatalog)
+onMounted(async () => {
+  await Promise.all([loadProviderCatalog(), loadConnectivity()])
+})
 </script>
 
 <template>
@@ -186,6 +203,13 @@ onMounted(loadProviderCatalog)
             <strong>{{ model.displayName }}</strong>
             <div class="inline-badges">
               <span v-for="role in modelRoleBadges(model.displayName)" :key="role" class="pill success">{{ role }}</span>
+              <span
+                v-if="connectivityMap[model.displayName]"
+                class="pill"
+                :class="connectivityMap[model.displayName].ok ? 'success' : 'danger'"
+              >
+                {{ connectivityMap[model.displayName].ok ? '连通 OK' : '连通 FAIL' }}
+              </span>
             </div>
           </div>
           <div class="inline-actions">
@@ -210,6 +234,10 @@ onMounted(loadProviderCatalog)
           <label class="field">
             <span>Capabilities</span>
             <input :value="Object.keys(model.capabilities || {}).join(', ')" disabled />
+          </label>
+          <label class="field" v-if="connectivityMap[model.displayName]">
+            <span>连通性诊断</span>
+            <input :value="connectivityMap[model.displayName].diagnosis || '-'" disabled />
           </label>
         </div>
       </div>

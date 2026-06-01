@@ -8,6 +8,10 @@ const api = inject('apiClient')
 const notify = inject('notify', (msg) => window.alert(msg))
 const appActions = inject('appActions')
 
+const connectivityFor = (name) => {
+  return models.value?.find((model) => model.displayName === name) ? name : ''
+}
+
 const saveRouting = async () => {
   try {
     await api.post('/api/routing', routingConfig.value)
@@ -53,6 +57,13 @@ const saveRouting = async () => {
         <div>
           <span class="muted">Easy / Medium / Hard</span>
           <strong>{{ routingConfig.tiers.easy || '-' }} / {{ routingConfig.tiers.medium || '-' }} / {{ routingConfig.tiers.hard || '-' }}</strong>
+        </div>
+        <div>
+          <span class="muted">绑定完整性</span>
+          <strong>
+            {{ connectivityFor(routingConfig.router_model) ? 'Router 已绑定' : 'Router 未绑定' }} /
+            {{ connectivityFor(routingConfig.summary_model) ? 'Summary 已绑定' : 'Summary 未绑定' }}
+          </strong>
         </div>
       </div>
     </div>
