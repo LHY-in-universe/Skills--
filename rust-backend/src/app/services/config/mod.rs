@@ -7,6 +7,7 @@
 
 pub mod auth;
 pub mod connectivity;
+pub mod local_models;
 pub mod models;
 pub mod observability;
 pub mod routing;

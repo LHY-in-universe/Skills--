@@ -11,6 +11,16 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::collections::BTreeMap;
 
+#[derive(serde::Deserialize)]
+pub struct LocalModelRequest {
+    pub model: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct LocalModelServiceRequest {
+    pub action: String,
+}
+
 /// 返回当前基础配置视图。
 ///
 /// 这里先对齐现有前端最核心的读取行为：当前模型、有效 provider、基础 URL。
@@ -59,6 +69,65 @@ pub async fn save_runtime_settings(
 
 pub async fn get_providers_catalog(State(state): State<AppState>) -> Json<Vec<serde_json::Value>> {
     Json(state.config_service.providers_catalog())
+}
+
+pub async fn get_local_model_status(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .local_model_status()
+        .await
+        .map(Json)
+        .map_err(internal_error)
+}
+
+pub async fn post_local_model_pull(
+    State(state): State<AppState>,
+    Json(req): Json<LocalModelRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .local_model_pull(&req.model)
+        .await
+        .map(Json)
+        .map_err(internal_error)
+}
+
+pub async fn post_local_model_load(
+    State(state): State<AppState>,
+    Json(req): Json<LocalModelRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .local_model_load(&req.model)
+        .await
+        .map(Json)
+        .map_err(internal_error)
+}
+
+pub async fn post_local_model_unload(
+    State(state): State<AppState>,
+    Json(req): Json<LocalModelRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .local_model_unload(&req.model)
+        .await
+        .map(Json)
+        .map_err(internal_error)
+}
+
+pub async fn post_local_model_service(
+    State(state): State<AppState>,
+    Json(req): Json<LocalModelServiceRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    state
+        .config_service
+        .local_model_service_control(&req.action)
+        .await
+        .map(Json)
+        .map_err(internal_error)
 }
 
 pub async fn get_security_audit(

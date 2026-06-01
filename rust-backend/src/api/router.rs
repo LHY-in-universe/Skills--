@@ -28,6 +28,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/providers/catalog",
             get(handlers::get_providers_catalog),
         )
+        .route("/api/local-models/status", get(handlers::get_local_model_status))
+        .route("/api/local-models/pull", post(handlers::post_local_model_pull))
+        .route("/api/local-models/load", post(handlers::post_local_model_load))
+        .route("/api/local-models/unload", post(handlers::post_local_model_unload))
+        .route("/api/local-models/service", post(handlers::post_local_model_service))
         .route(
             "/api/runtime-settings",
             get(handlers::get_runtime_settings).post(handlers::save_runtime_settings),

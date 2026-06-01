@@ -13,6 +13,7 @@ const appActions = inject('appActions')
 const providerCatalog = ref([])
 const editableModels = ref([])
 const connectivityMap = ref({})
+const localModelStatus = ref(null)
 const newModelName = ref('')
 const newModelId = ref('')
 const newModelProvider = ref('siliconflow')
@@ -53,6 +54,10 @@ const groupedModels = computed(() => {
   return Object.entries(groups)
 })
 
+const localModels = computed(() =>
+  (editableModels.value || []).filter((model) => model.provider === 'local')
+)
+
 watch(models, (nextModels) => {
   editableModels.value = (nextModels || []).map((model) => ({
     ...model,
@@ -77,6 +82,15 @@ const loadConnectivity = async () => {
   } catch (err) {
     connectivityMap.value = {}
     notify(`加载模型连通性失败: ${err.message}`, 'error')
+  }
+}
+
+const loadLocalModelStatus = async () => {
+  try {
+    localModelStatus.value = await api.get('/api/local-models/status')
+  } catch (err) {
+    localModelStatus.value = null
+    notify(`加载本地模型状态失败: ${err.message}`, 'error')
   }
 }
 
@@ -138,8 +152,48 @@ const deleteModel = async (name) => {
   }
 }
 
+const controlLocalService = async (action) => {
+  try {
+    await api.post('/api/local-models/service', { action })
+    await loadLocalModelStatus()
+    notify(`本地模型服务${action === 'start' ? '启动' : '停止'}指令已发送`, 'success')
+  } catch (err) {
+    notify(`本地模型服务操作失败: ${err.message}`, 'error')
+  }
+}
+
+const pullLocalModel = async (modelId) => {
+  try {
+    await api.post('/api/local-models/pull', { model: modelId })
+    await loadLocalModelStatus()
+    notify(`模型下载完成: ${modelId}`, 'success')
+  } catch (err) {
+    notify(`模型下载失败: ${err.message}`, 'error')
+  }
+}
+
+const loadLocalModel = async (modelId) => {
+  try {
+    await api.post('/api/local-models/load', { model: modelId })
+    await loadLocalModelStatus()
+    notify(`模型已预热: ${modelId}`, 'success')
+  } catch (err) {
+    notify(`模型预热失败: ${err.message}`, 'error')
+  }
+}
+
+const unloadLocalModel = async (modelId) => {
+  try {
+    await api.post('/api/local-models/unload', { model: modelId })
+    await loadLocalModelStatus()
+    notify(`模型已释放: ${modelId}`, 'success')
+  } catch (err) {
+    notify(`模型释放失败: ${err.message}`, 'error')
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadProviderCatalog(), loadConnectivity()])
+  await Promise.all([loadProviderCatalog(), loadConnectivity(), loadLocalModelStatus()])
 })
 </script>
 
@@ -165,6 +219,39 @@ onMounted(async () => {
         <div><span class="muted">Router</span><strong>{{ routingRoles.router || '未设置' }}</strong></div>
         <div><span class="muted">Summary</span><strong>{{ routingRoles.summary || '未设置' }}</strong></div>
         <div><span class="muted">Easy / Medium / Hard</span><strong>{{ routingRoles.easy || '-' }} / {{ routingRoles.medium || '-' }} / {{ routingRoles.hard || '-' }}</strong></div>
+      </div>
+    </div>
+
+    <div class="card" v-if="localModels.length > 0">
+      <div class="section-headline">
+        <h3>本地模型控制</h3>
+        <span class="muted">{{ localModelStatus?.service_running ? '服务已启动' : '服务未启动' }}</span>
+      </div>
+      <div class="inline-actions" style="margin-bottom: 12px;">
+        <button type="button" class="btn-secondary" @click="loadLocalModelStatus()">刷新状态</button>
+        <button type="button" class="btn-secondary" @click="controlLocalService('start')">启动服务</button>
+        <button type="button" class="btn-danger" @click="controlLocalService('stop')">停止服务</button>
+      </div>
+      <div class="stack-gap">
+        <div v-for="model in localModels" :key="`local-${model.displayName}`" class="subcard">
+          <div class="card-topline">
+            <div>
+              <strong>{{ model.displayName }}</strong>
+              <div class="inline-badges">
+                <span class="pill success">Local</span>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <button type="button" class="btn-secondary" @click="pullLocalModel(model.apiId)">下载</button>
+              <button type="button" class="btn-secondary" @click="loadLocalModel(model.apiId)">启动/预热</button>
+              <button type="button" class="btn-danger" @click="unloadLocalModel(model.apiId)">结束/释放</button>
+            </div>
+          </div>
+          <div class="meta-grid compact">
+            <div><span class="muted">模型 ID</span><strong>{{ model.apiId }}</strong></div>
+            <div><span class="muted">服务</span><strong>{{ localModelStatus?.service_running ? '运行中' : '未运行' }}</strong></div>
+          </div>
+        </div>
       </div>
     </div>
 
