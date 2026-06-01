@@ -13,6 +13,7 @@ const isLightMode = inject('isLightMode')
 const conversations = inject('conversations')
 const activeConversationId = inject('activeConversationId')
 const liveUsage = inject('liveUsage')
+const routingConfig = inject('routingConfig')
 const appActions = inject('appActions')
 
 const navItems = [
@@ -35,7 +36,8 @@ const runtimeSummary = computed(() => {
   const provider = currentModelMeta.value
     ? getProviderName(currentModelMeta.value)
     : (apiConfig.value?.effective_provider || '-')
-  return { model, provider }
+  const routeEnabled = routingConfig.value?.enabled === true
+  return { model, provider, routeEnabled }
 })
 
 const sortedConversations = computed(() =>
@@ -56,15 +58,19 @@ const isRouteActive = (to) => route.path === to
 
     <div class="sidebar-summary card-lite">
       <div class="summary-row">
-        <span class="muted">当前模型</span>
+        <span class="muted">默认模型</span>
         <strong>{{ currentModel || '-' }}</strong>
       </div>
       <div class="summary-row">
-        <span class="muted">Provider</span>
+        <span class="muted">路由状态</span>
+        <strong>{{ runtimeSummary.routeEnabled ? '已启用' : '未启用' }}</strong>
+      </div>
+      <div class="summary-row">
+        <span class="muted">生效 Provider</span>
         <strong>{{ runtimeSummary.provider }}</strong>
       </div>
       <div class="summary-row">
-        <span class="muted">Model ID</span>
+        <span class="muted">生效模型</span>
         <strong>{{ runtimeSummary.model }}</strong>
       </div>
       <div class="summary-row">

@@ -16,6 +16,8 @@ const md = new MarkdownIt({ html: false, linkify: false })
 const container = ref(null)
 const processCollapsed = ref(false)
 
+const THINK_BLOCK_RE = /<think>([\s\S]*?)<\/think>/i
+
 const detectProviderFromUrl = (url) => {
   if (!url) return ''
   const host = String(url).toLowerCase()
@@ -44,6 +46,17 @@ const getToolLabel = (msg, index, toolCall = null) => {
 
 const renderMarkdown = (content) => {
   return md.render(content || '')
+}
+
+const splitThinkBlock = (content) => {
+  const text = String(content || '')
+  const match = text.match(THINK_BLOCK_RE)
+  if (!match) {
+    return { think: '', body: text }
+  }
+  const think = (match[1] || '').trim()
+  const body = text.replace(match[0], '').trim()
+  return { think, body }
 }
 
 const currentStepIndex = computed(() => {
@@ -126,13 +139,21 @@ watch(() => streamingContent.value, scrollToBottom)
     </div>
 
     <template v-for="(msg, index) in messages" :key="index">
-      
-      <!-- 1. Text Content: Only render if there is non-whitespace text, skipping empty messages -->
-      <div
-        v-if="msg.content && msg.content.trim() !== '' && msg.role !== 'tool'"
-        :class="['message', msg.role]"
-        v-html="renderMarkdown(msg.content)"
-      ></div>
+      <template v-if="msg.role !== 'tool'">
+        <div
+          v-if="splitThinkBlock(msg.content).think"
+          class="think-block"
+        >
+          <div class="think-title">思考过程</div>
+          <div class="think-content" v-html="renderMarkdown(splitThinkBlock(msg.content).think)"></div>
+        </div>
+
+        <div
+          v-if="splitThinkBlock(msg.content).body"
+          :class="['message', msg.role]"
+          v-html="renderMarkdown(splitThinkBlock(msg.content).body)"
+        ></div>
+      </template>
 
       <!-- Model label + token count under assistant messages -->
       <div
@@ -171,7 +192,18 @@ watch(() => streamingContent.value, scrollToBottom)
 
     <!-- Streaming content (live text as it arrives) -->
     <template v-if="isStreaming && streamingContent">
-      <div class="message assistant streaming" v-html="renderMarkdown(streamingContent)"></div>
+      <div
+        v-if="splitThinkBlock(streamingContent).think"
+        class="think-block"
+      >
+        <div class="think-title">思考过程</div>
+        <div class="think-content" v-html="renderMarkdown(splitThinkBlock(streamingContent).think)"></div>
+      </div>
+      <div
+        v-if="splitThinkBlock(streamingContent).body"
+        class="message assistant streaming"
+        v-html="renderMarkdown(splitThinkBlock(streamingContent).body)"
+      ></div>
       <div v-if="streamingModel" class="model-label">{{ streamingModel.split('/').pop() }}</div>
     </template>
 
@@ -373,6 +405,31 @@ watch(() => streamingContent.value, scrollToBottom)
   color: var(--accent-color);
   font-weight: 700;
   opacity: 1;
+}
+
+.think-block {
+  align-self: flex-start;
+  max-width: 85%;
+  border: 1px dashed var(--border-color);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--panel-bg) 86%, transparent);
+  color: var(--text-secondary);
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.45rem;
+}
+
+.think-title {
+  font-size: var(--font-xs);
+  font-family: 'Fira Code', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  margin-bottom: 0.45rem;
+}
+
+.think-content {
+  font-size: var(--font-sm);
+  line-height: 1.55;
 }
 
 /* Typing dots */
