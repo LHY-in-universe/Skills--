@@ -22,7 +22,7 @@ Skills探索/
 ## 当前形态
 
 - Web 前端是唯一 UI 入口，位于 `webapp/frontend/`
-- 主服务是 `rust-backend/`，默认监听 `http://127.0.0.1:18000`
+- 主服务是 `rust-backend/`，默认监听 `http://127.0.0.1:18000`，可在运行时配置中改为其他 host/port
 - `siliconflow/data/` 下的内容属于本地运行数据，不应作为稳定业务数据直接编辑
 - 外部模型认证当前以 `siliconflow/config/.env` 为事实源，密钥不要写入可提交配置
 
@@ -53,6 +53,7 @@ cargo run --release
 ```
 
 默认监听：`http://127.0.0.1:18000`
+可在前端“运行时策略”页修改 `backend_host / backend_port`，例如设为 `0.0.0.0:18000`
 
 ### 3) 启动前端（Vite）
 

@@ -11,6 +11,8 @@ const selfCorrectionMaxRetries = ref(1)
 const loopGuardEnabled = ref(true)
 const plannerEnabled = ref(false)
 const plannerMaxSteps = ref(3)
+const backendHost = ref('127.0.0.1')
+const backendPort = ref(18000)
 const visionModelDefault = ref('')
 const visionModelSiliconflow = ref('')
 const visionModelDeepseek = ref('')
@@ -25,6 +27,8 @@ const loadRuntimeSettings = async () => {
     loopGuardEnabled.value = data.loop_guard_enabled !== false
     plannerEnabled.value = data.planner_enabled === true
     plannerMaxSteps.value = Number.isFinite(data.planner_max_steps) ? data.planner_max_steps : 3
+    backendHost.value = data.backend_host || '127.0.0.1'
+    backendPort.value = Number.isFinite(data.backend_port) ? data.backend_port : 18000
     const vm = data.vision_models || {}
     visionModelDefault.value = vm.default || ''
     visionModelSiliconflow.value = vm.siliconflow || ''
@@ -44,6 +48,8 @@ const saveRuntimeSettings = async () => {
       loop_guard_enabled: loopGuardEnabled.value,
       planner_enabled: plannerEnabled.value,
       planner_max_steps: Math.max(1, Math.min(8, Number(plannerMaxSteps.value) || 3)),
+      backend_host: backendHost.value.trim() || '127.0.0.1',
+      backend_port: Math.max(1, Math.min(65535, Number(backendPort.value) || 18000)),
       vision_models: {
         default: visionModelDefault.value.trim(),
         siliconflow: visionModelSiliconflow.value.trim(),
@@ -66,7 +72,7 @@ onMounted(loadRuntimeSettings)
     <div class="page-header">
       <div>
         <h2>运行时策略</h2>
-        <p>调整 embedding、自我修正、planner 和视觉模型默认值。</p>
+        <p>调整 embedding、自我修正、planner、后端监听地址和视觉模型默认值。</p>
       </div>
       <button class="btn-primary" @click="saveRuntimeSettings">保存</button>
     </div>
@@ -100,6 +106,14 @@ onMounted(loadRuntimeSettings)
         <label class="field">
           <span>Planner 最大步数</span>
           <input v-model.number="plannerMaxSteps" type="number" min="1" max="8" />
+        </label>
+        <label class="field">
+          <span>后端监听 Host</span>
+          <input v-model="backendHost" placeholder="127.0.0.1 或 0.0.0.0" />
+        </label>
+        <label class="field">
+          <span>后端监听 Port</span>
+          <input v-model.number="backendPort" type="number" min="1" max="65535" />
         </label>
       </div>
     </div>

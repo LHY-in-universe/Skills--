@@ -54,6 +54,10 @@ fn default_true() -> bool {
 /// 的所有策略都会正式挂到这里，而不是散落在 orchestrator 长函数里。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeSettings {
+    #[serde(default = "default_backend_host")]
+    pub backend_host: String,
+    #[serde(default = "default_backend_port")]
+    pub backend_port: u16,
     #[serde(default)]
     pub embedding_policy: String,
     #[serde(default)]
@@ -72,6 +76,14 @@ pub struct RuntimeSettings {
     pub vision_models: serde_json::Value,
     #[serde(default)]
     pub retry_policy: serde_json::Value,
+}
+
+fn default_backend_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_backend_port() -> u16 {
+    18000
 }
 
 /// 运行时完整快照。

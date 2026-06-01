@@ -1,5 +1,6 @@
 use skills_rust_backend::api::router::build_router;
 use skills_rust_backend::app::state::AppState;
+use skills_rust_backend::domain::models::RuntimeSettings;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing::info;
@@ -22,9 +23,11 @@ async fn main() -> anyhow::Result<()> {
         .to_path_buf();
 
     let state = AppState::bootstrap(project_root).await?;
+    let runtime: RuntimeSettings = state.config_service.runtime_settings();
     let app = build_router(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 18000));
+    let host = runtime.backend_host.parse::<std::net::IpAddr>()?;
+    let addr = SocketAddr::from((host, runtime.backend_port));
     info!("Rust backend listening on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
