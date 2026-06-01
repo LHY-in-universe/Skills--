@@ -27,15 +27,12 @@ const navItems = [
   { to: '/lark', label: 'Lark', icon: KeyRound },
 ]
 
-const currentModelMeta = computed(() =>
-  (models.value || []).find((item) => item.displayName === currentModel.value) || null
-)
-
 const runtimeSummary = computed(() => {
-  const model = apiConfig.value?.effective_model_id || currentModel.value || '-'
-  const provider = currentModelMeta.value
-    ? getProviderName(currentModelMeta.value)
-    : (apiConfig.value?.effective_provider || '-')
+  const effectiveModelId = apiConfig.value?.effective_model_id || ''
+  const effectiveProvider = apiConfig.value?.effective_provider || ''
+  const matchedModel = (models.value || []).find((item) => item.apiId === effectiveModelId) || null
+  const model = matchedModel?.displayName || effectiveModelId || currentModel.value || '-'
+  const provider = effectiveProvider || (matchedModel ? getProviderName(matchedModel) : '-')
   const routeEnabled = routingConfig.value?.enabled === true
   return { model, provider, routeEnabled }
 })
@@ -57,10 +54,6 @@ const isRouteActive = (to) => route.path === to
     </div>
 
     <div class="sidebar-summary card-lite">
-      <div class="summary-row">
-        <span class="muted">默认模型</span>
-        <strong>{{ currentModel || '-' }}</strong>
-      </div>
       <div class="summary-row">
         <span class="muted">路由状态</span>
         <strong>{{ runtimeSummary.routeEnabled ? '已启用' : '未启用' }}</strong>
