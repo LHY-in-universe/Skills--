@@ -17,7 +17,8 @@ siliconflow/
 │   ├── token_usage.json    # Token 统计
 │   └── *.db                # Rust 后端生成的 SQLite 数据库
 ├── scripts/
-│   └── chat.py             # 命令行聊天入口
+│   ├── chat.py             # 命令行聊天入口
+│   └── check_model_connectivity.py  # 外部模型连通性自检
 ├── SKILL.md                # 系统提示词与工具说明
 └── requirements.txt        # Python 依赖
 ```
@@ -44,9 +45,16 @@ SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
 python3 siliconflow/scripts/chat.py
 ```
 
+4. 检查当前模型连通性（可选）
+
+```bash
+python3 siliconflow/scripts/check_model_connectivity.py
+```
+
 ## 说明
 
 - CLI 模块与 Rust 后端共享同一套配置目录（`siliconflow/config/`）和技能目录（`skills/`）
 - 模型列表来自 `rust-backend/config/models.json`
 - `siliconflow/data/` 同时承载 CLI JSON 数据和 Rust 后端生成的 SQLite 文件
 - 这些文件属于本地运行时状态，不适合作为手工维护的配置来源
+- API key 以本地 `siliconflow/config/.env` 为准，不应写入可提交配置

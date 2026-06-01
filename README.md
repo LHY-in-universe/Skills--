@@ -24,6 +24,7 @@ Skills探索/
 - Web 前端是唯一 UI 入口，位于 `webapp/frontend/`
 - 主服务是 `rust-backend/`，默认监听 `http://127.0.0.1:18000`
 - `siliconflow/data/` 下的内容属于本地运行数据，不应作为稳定业务数据直接编辑
+- 外部模型认证当前以 `siliconflow/config/.env` 为事实源，密钥不要写入可提交配置
 
 ## 快速启动
 
@@ -38,6 +39,10 @@ SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
 # 可选
 DEEPSEEK_API_KEY=your_deepseek_key
 DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+
+# 可选：MiniMax
+MINIMAX_API_KEY=your_minimax_key
+MINIMAX_API_URL=https://api.minimaxi.com/v1/chat/completions
 ```
 
 ### 2) 启动后端（Rust）
@@ -67,6 +72,35 @@ npm run dev
 - **语音交互**：KWS 唤醒词 + VAD 端点检测 + Paraformer ASR + Edge TTS，全部 Rust 进程内
 - **会话管理**：SQLite 持久化，支持多会话切换
 - **可观测性**：token 统计、执行日志、failover 记录
+
+## 当前模型策略
+
+- 默认启用模型：`DeepSeek-V4-Pro`
+- 路由分类模型：`DeepSeek-V4-Pro`
+- 摘要压缩模型：`DeepSeek-V4-Pro`
+- `easy`：`MiniMax-M2.7`
+- `medium`：`MiMo-2.5-Pro`
+- `hard`：`DeepSeek-V4-Pro`
+
+## 连通性自检
+
+用于快速验证当前本地 `.env` 中的 key 和模型接入是否真的可用：
+
+```bash
+python3 siliconflow/scripts/check_model_connectivity.py
+```
+
+当前脚本会真实请求：
+
+- `DeepSeek` → `deepseek-v4-pro`
+- `SiliconFlow` → `MiMo-2.5-Pro`
+- `MiniMax` → `MiniMax-M2.7`
+
+如果某项失败，优先检查：
+
+- provider 的 API key 是否有效
+- key 是否有对应模型访问权限
+- provider endpoint 是否仍是官方当前地址
 
 ## 可选组件
 

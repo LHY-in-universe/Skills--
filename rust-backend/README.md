@@ -66,6 +66,7 @@ cargo run --release
 | GET | `/api/doctor` | 诊断报告 |
 | POST | `/api/doctor/fix` | 自动修复 |
 | GET | `/api/security-audit` | 安全审计 |
+| GET | `/api/model-connectivity` | 当前模型与路由模型的真实连通性自检 |
 | GET | `/api/failover/recent` | 最近 failover 事件 |
 | GET | `/api/observability/summary` | 运行摘要 |
 | GET | `/api/observability/events` | 执行事件日志 |
@@ -190,3 +191,25 @@ rust-backend/
 自动执行的安全工具：`get_current_time` / `get_system_info` / `monte_carlo_integration` / `summary_rules`
 
 需要权限确认的危险工具：`run_terminal` / `file_editor` / `write_python` / `pip_venv` / `vision_analyze`
+
+## 模型连通性排障
+
+若需要验证本地 `.env` 中的 key 是否真的能打通当前模型配置，可使用：
+
+```bash
+python3 ../siliconflow/scripts/check_model_connectivity.py
+```
+
+或者在后端运行时请求：
+
+```bash
+curl http://127.0.0.1:18000/api/model-connectivity
+```
+
+这会对当前启用模型、`router_model`、`summary_model` 和 `easy/medium/hard` tier
+中用到的模型发起最小非流式请求，并返回：
+
+- `ok`
+- `status`
+- `diagnosis`
+- `recommendation`
